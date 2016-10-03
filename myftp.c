@@ -1,5 +1,6 @@
 // myftp.c
 // John Riordan
+// And Nolan
 // jriorda2
 
 // usage: myftp Server_Name Port
