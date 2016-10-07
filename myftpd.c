@@ -19,10 +19,10 @@
 #define MAX_PENDING 5
 #define MAX_LINE 256
 
-void handle_input(char* msg, int s);
+int handle_input(char* msg, int s);
 int list_dir(int s);
 int change_dir(int s);
-char *receive_instruction(int s);
+int receive_instruction(int s, char* buf);
 
 int main( int argc, char* argv[] ){
 	struct sockaddr_in sin, client_addr;
@@ -81,7 +81,8 @@ int main( int argc, char* argv[] ){
 		}
 
 		while( 1 ){
-			if( ( len = recv( new_s, buf, sizeof( buf ), 0 ) ) == 1 ){
+			if( ( len = recv( new_s, buf, sizeof( buf ), 0 ) ) == -1 ){
+				// changed from 1 to -1
 				fprintf( stderr, "myftpd: receive error\n" );
 				exit( 1 );
 			}
@@ -95,7 +96,9 @@ int main( int argc, char* argv[] ){
 				break;
 			}
 
-			handle_input(buf, new_s);
+			if (handle_input(buf, new_s) != 0) {
+				fprintf(stderr, "myftpd: failure to complete request\n");
+			}
 		}
 
 		close( new_s );
@@ -111,7 +114,7 @@ int handle_input(char* msg, int s) {
 	if (!strncmp("DEL", msg, 3)) {
 		
 	} else if (!strncmp("LIS", msg, 3)) {
-		return list_dir(s);
+		response = list_dir(s);
 
 	} else if (!strncmp("MKD", msg, 3)) {
 
@@ -120,8 +123,9 @@ int handle_input(char* msg, int s) {
 
 	
 	} else if (!strncmp("CHD", msg, 3)) {
-		return change_dir(s); // start change_directory process and return its response
+		response = change_dir(s); // start change_directory process and return its response
 	}
+	return response;
 }
 
 int list_dir(int s) {
@@ -136,7 +140,7 @@ int list_dir(int s) {
 	if (dp == NULL) return -1; // error opening directory
 
 	while(dep = readdir(dp)) {
-		strcat(buf, ep->d_name);
+		strcat(buf, dep->d_name);
 		strcat(buf, "\n");
 	}
 	
@@ -145,31 +149,39 @@ int list_dir(int s) {
 	}
 
 	// send directory
+	// // TODO: send length first
+	
 	len = strlen(buf) + 1;
+	//send message length
+	int* size = &len;
+	if (send(s, size, sizeof(size), 0) == -1) {	
+		fprintf( stderr, "myftpd: error sending size\n");
+	}
+	//TODO: might loop through if the buffer is not large enough, so send in the readdir loop
 	if (send(s, buf, len, 0) == -1) {	
 		fprintf( stderr, "myftpd: error sending directory listing\n" );
 	}
 }
 
 int change_dir(int s) {
-	char* dir = receive_instruction(s);
+	char* dir; 
+	if (receive_instruction(s, dir) <= 0) {
+		return -1;
+	}
 
 	return chdir(dir); // returns 0 on success
 }
 
-char *receive_instruction(int s) {
+int receive_instruction(int s, char* buf) {
+	int len;
 
-	while(1) {
-		if( ( len = recv( new_s, buf, sizeof( buf ), 0 ) ) == 1 ){
-			fprintf( stderr, "myftpd: receive error\n" );
-			exit( 1 );
-		}
-
-		if( len == 0 ) return ""; // perhaps send error flag?
-
-		printf( "Received Instruction: %s", buf );			
-		
-		return buf;
+	// todo: receive length first and loop, perhaps subtract len from expected total before loop?	
+	if( ( len = recv( s, buf, sizeof( buf ), 0 ) ) == -1 ){
+		fprintf( stderr, "myftpd: insturction receive error\n" );
+		exit( 1 );
 	}
+
+	printf( "Received Instruction: %s", buf );			
 	
+	return len;	
 }
