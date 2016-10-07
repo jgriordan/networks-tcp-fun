@@ -13,9 +13,16 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <time.h>
+#include <unistd.h> // for the unix commands
+#include <dirent.h> // for directory information
 
 #define MAX_PENDING 5
 #define MAX_LINE 256
+
+void handle_input(char* msg, int s);
+int list_dir(int s);
+int change_dir(int s);
+char *receive_instruction(int s);
 
 int main( int argc, char* argv[] ){
 	struct sockaddr_in sin, client_addr;
@@ -81,10 +88,87 @@ int main( int argc, char* argv[] ){
 			if( len == 0 ) break;
 
 			printf( "Received: %s", buf );			
+
+			// exit case.
+			if (!strncmp("XIT", buf, 3)) { // client sent exit request
+				break;
+			}
+
+			handle_input(buf, new_s);
 		}
 
 		close( new_s );
 	}
 
 	return 0;
+}
+
+int handle_input(char* msg, int s) {
+	
+	int response = 0;
+	// check for all special 3 char messages
+	if (!strncmp("DEL", msg, 3)) {
+		
+	} else if (!strncmp("LIS", msg, 3)) {
+		return list_dir(s);
+
+	} else if (!strncmp("MKD", msg, 3)) {
+
+
+	} else if (!strncmp("RMD", msg, 3)) {
+
+	
+	} else if (!strncmp("CHD", msg, 3)) {
+		return change_dir(s); // start change_directory process and return its response
+	}
+}
+
+int list_dir(int s) {
+
+	DIR *dp; // pointer to current directory
+	struct dirent *dep; // information about directory
+	char buf[MAX_LINE];
+	int len; // length of message
+
+	dp = opendir("./"); // open working directory
+
+	if (dp == NULL) return -1; // error opening directory
+
+	while(dep = readdir(dp)) {
+		strcat(buf, ep->d_name);
+		strcat(buf, "\n");
+	}
+	
+	if (closedir(dp) == -1) {
+		fprintf( stderr, "myftpd: could not close directory\n" );
+	}
+
+	// send directory
+	len = strlen(buf) + 1;
+	if (send(s, buf, len, 0) == -1) {	
+		fprintf( stderr, "myftpd: error sending directory listing\n" );
+	}
+}
+
+int change_dir(int s) {
+	char* dir = receive_instruction(s);
+
+	return chdir(dir); // returns 0 on success
+}
+
+char *receive_instruction(int s) {
+
+	while(1) {
+		if( ( len = recv( new_s, buf, sizeof( buf ), 0 ) ) == 1 ){
+			fprintf( stderr, "myftpd: receive error\n" );
+			exit( 1 );
+		}
+
+		if( len == 0 ) return ""; // perhaps send error flag?
+
+		printf( "Received Instruction: %s", buf );			
+		
+		return buf;
+	}
+	
 }
