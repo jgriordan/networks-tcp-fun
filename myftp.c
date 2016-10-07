@@ -3,7 +3,7 @@
 // And Nolan
 // jriorda2
 
-// usage: myftp Server_Name Port
+// usage: myftp server_name port
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,32 +14,31 @@
 #include <netinet/in.h>
 #include <netdb.h>
 
-#define MAX_LINE
+#define MAX_LINE 256
 
 int main( int argc, char* argv[] ){
 	FILE* fp = NULL;
 	struct hostent* hp;
 	struct sockaddr_in sin;
 	char* host;
-	char buf[MYLEN], resp[BUF_LEN], key[BUF_LEN];
-	int i, s, len, addr_len, key_len, resp_len;
+	char buf[MAX_LINE];
+	int i, s, len;
 	uint16_t port;
-	struct timeval start, end;
+	/*struct timeval start, end;*/
 
 	// validate and put command line in variables
-	if( argc == 4 ){
+	if( argc == 3 ){
 		host = argv[1];
 		port = atoi(argv[2]);
-		input = argv[3];
 	} else {
-		fprintf( stderr, "usage: udpclient host port input\n" );
+		fprintf( stderr, "usage: myftp server_name port\n" );
 		exit( 1 );
 	}
 
 	// translate host name into peer's IP address
 	hp = gethostbyname( host );
 	if( !hp ){
-		fprintf( stderr, "udpclient: unknown host: %s\n", host );
+		fprintf( stderr, "myftp: unknown host: %s\n", host );
 		exit( 1 );
 	}
 
@@ -49,64 +48,35 @@ int main( int argc, char* argv[] ){
 	bcopy( hp->h_addr, (char*)&sin.sin_addr, hp->h_length );
 	sin.sin_port = htons( port );
 
-	// active open
-	if( (s = socket( PF_INET, SOCK_DGRAM, 0 )) < 0 ){
-		fprintf( stderr, "udpclient: socket error" );
+	// create the socket
+	if( (s = socket( PF_INET, SOCK_STREAM, 0 )) < 0 ){
+		fprintf( stderr, "myftp: socket creation error\n" );
 		exit( 1 );
 	}
 
-		
-	// prevent buffer overflow because hackers
-	buf[BUF_LEN] = '\0';
-
-	// try to open a file
-	fp = fopen( input, "r" );
-
-	// if open was successful, put file in the buffer
-	if( fp ){
-		fread( buf, sizeof( char ), BUF_LEN, fp );
-		fclose( fp );
-	// otherwise, treat input as simple text
-	} else {
-		strncpy( buf, input, BUF_LEN );
-	}
-	len = strlen(buf) + 1;
-
-	// start roundtrip timer
-	gettimeofday( &start, NULL );
-
-	// send buffer to server
-	if( sendto( s, buf, len, 0, (struct sockaddr*)&sin, sizeof( struct sockaddr ) ) == -1 ){
-		fprintf( stderr, "udpclient: send error" );
+	// connect the created socket to the remote server
+	if( connect( s, (struct sockaddr*)&sin, sizeof(sin) ) < 0 ){
+		fprintf( stderr, "myftp: connect error\n" );
+		close( s );
 		exit( 1 );
 	}
 
-	addr_len = sizeof( struct sockaddr );
+	// main (fucking awesome) loop
+	while( fgets( buf, sizeof(buf), stdin ) ){
+		buf[MAX_LINE-1] = '\0';
+		if( !strncmp( buf, "Exit", 4 ) ){
+			printf( "Bye bye\n" );
+			break;
+		}
 
-	// get first response- encrypted fun
-	if( ( resp_len = recvfrom( s, resp, BUF_LEN, 0, (struct sockaddr*)&sin, &addr_len ) ) == -1 ){
-		fprintf( stderr, "udpclient: receive error" );
-		exit( 1 );
+		len = strlen(buf) + 1;
+		if( send( s, buf, len, 0 ) == -1 ){
+			fprintf( stderr, "myftp: send error\n" );
+			exit( 1 );
+		}
 	}
 
-	// end roundtrip timer
-	gettimeofday( &end, NULL );
-
-	// get second response- key
-	if( ( key_len = recvfrom( s, key, BUF_LEN, 0, (struct sockaddr*)&sin, &addr_len ) ) == -1 ){
-		fprintf( stderr, "udpclient: receive error" );
-		exit( 1 );
-	}
-
-	// decrypt back into buf and display
-	for( i=0; i<resp_len; i++ ){
-		buf[i] = resp[i] ^ key[i%key_len];
-	}
-	buf[resp_len] = '\0';
-	printf( "\nDecrypted Message From Server:\n%s\n", buf );
-
-	// compute RTT and display
-	printf( "\nRTT: %ld microseconds\n\n", ( 1000000 * (end.tv_sec - start.tv_sec ) + end.tv_usec - start.tv_usec ) );
+	close( s );
 
 	return 0;
 }

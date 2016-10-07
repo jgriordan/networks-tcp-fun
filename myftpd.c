@@ -27,7 +27,7 @@ char *receive_instruction(int s);
 int main( int argc, char* argv[] ){
 	struct sockaddr_in sin, client_addr;
 	char buf[MAX_LINE];
-	int s, new_s, len;
+	int s, new_s, len, opt;
 	uint16_t port;
 	/*char timestamp[1024];
 	struct timeval t_of_day;
@@ -55,6 +55,7 @@ int main( int argc, char* argv[] ){
 	}
 
 	// set socket options
+	opt = 1;
 	if( ( setsockopt( s, SOL_SOCKET, SO_REUSEADDR, (char*)&opt, sizeof(int) ) ) < 0 ){
 		fprintf( stderr, "myftpd: error setting socket options\n" );
 		exit( 1 );
