@@ -15,13 +15,16 @@
 #include <time.h>
 #include <unistd.h> // for the unix commands
 #include <dirent.h> // for directory information
+#include <sys/stat.h> // for directory status
 
 #define MAX_PENDING 5
 #define MAX_LINE 256
 
 int handle_input(char* msg, int s);
 int list_dir(int s);
+int remove_dir(int s);
 int change_dir(int s);
+int check_dir(char *dir); // checks that the directory exists
 int receive_instruction(int s, char* buf);
 
 int main( int argc, char* argv[] ){
@@ -118,14 +121,46 @@ int handle_input(char* msg, int s) {
 
 	} else if (!strncmp("MKD", msg, 3)) {
 
-
+		response = make_dir(s);
 	} else if (!strncmp("RMD", msg, 3)) {
-
+		response = remove_dir(s);
 	
 	} else if (!strncmp("CHD", msg, 3)) {
 		response = change_dir(s); // start change_directory process and return its response
 	}
 	return response;
+}
+
+int delete_file(int s) {
+
+	char file[MAX_LINE]; 
+	char buf[MAX_LINE];
+
+	if (receive_instruction(s, file) <= 0) {
+		return -3; // instruction error
+	}
+
+	int resp = check_file(file);
+
+	// send response regarding directory
+	if (send(s, &resp, sizeof(resp), 0) == -1) {
+		fprintf( stderr, "myftpd: error sending directory status\n");
+	}
+
+	int len;
+	// get answer from client
+	if( ( len = recv( s, buf, sizeof( buf ), 0 ) ) == -1 ){
+		fprintf( stderr, "myftpd: instruction receive error\n" );
+		exit( 1 );
+	}
+
+	if (!strncmp(buf, "Yes", 3)) {
+		// string is Yes
+		return remove(file); // try to remove directory and return status
+		// 0 on success, otherwise -1
+	} else if (!strncmp(buf, "No", 2)) {
+		return 0;
+	}
 }
 
 int list_dir(int s) {
@@ -154,7 +189,7 @@ int list_dir(int s) {
 	len = strlen(buf) + 1;
 	//send message length
 	int* size = &len;
-	if (send(s, size, sizeof(size), 0) == -1) {	
+	if (send(s, size, sizeof(len), 0) == -1) {	
 		fprintf( stderr, "myftpd: error sending size\n");
 	}
 	//TODO: might loop through if the buffer is not large enough, so send in the readdir loop
@@ -163,13 +198,81 @@ int list_dir(int s) {
 	}
 }
 
-int change_dir(int s) {
-	char* dir; 
+int remove_dir(int s) {
+
+	char dir[MAX_LINE]; 
+	char buf[MAX_LINE];
+
 	if (receive_instruction(s, dir) <= 0) {
-		return -1;
+		return -3; // instruction error
 	}
 
-	return chdir(dir); // returns 0 on success
+	int resp = check_dir(dir);
+
+	// send response regarding directory
+	if (send(s, &resp, sizeof(resp), 0) == -1) {
+		fprintf( stderr, "myftpd: error sending directory status\n");
+	}
+
+	int len;
+	// get answer from client
+	if( ( len = recv( s, buf, sizeof( buf ), 0 ) ) == -1 ){
+		fprintf( stderr, "myftpd: instruction receive error\n" );
+		exit( 1 );
+	}
+
+	if (!strncmp(buf, "Yes", 3)) {
+		// string is Yes
+		return rmdir(dir); // try to remove directory and return status
+		// 0 on success, otherwise -1
+	} else if (!strncmp(buf, "No", 2)) {
+		return 0;
+	}
+}
+int check_file(char *file) { // checks that the directory exists
+
+	if (access(file, F_OK) == -1) { // directory not found
+		return -1;
+	} else {
+		return 1; // positive confirmation
+	}	
+}
+
+int check_dir(char *dir) { // checks that the directory exists
+
+	struct stat st = {0}; // holds directory status
+
+	if (stat(dir, &st) == -1) { // directory not found
+		return -1;
+	} else {
+		return 1; // positive confirmation
+	}	
+}
+
+int make_dir(int s) {
+	char dir[MAX_LINE]; 
+	struct stat st = {0}; // holds directory status
+
+	if (receive_instruction(s, dir) <= 0) {
+		return -3; // instruction error
+	}
+
+	if (stat(dir, &st) == -1) { // directory not found
+		return mkdir(dir, 0700); // returns 0 on success, -1 on error
+		
+	} else {
+		return -2; //
+	}
+
+}
+
+int change_dir(int s) {
+	char dir[MAX_LINE]; 
+	if (receive_instruction(s, dir) <= 0) {
+		return -3;
+	}
+
+	return chdir(dir); // returns 0 on success, -1 error
 }
 
 int receive_instruction(int s, char* buf) {
@@ -177,7 +280,7 @@ int receive_instruction(int s, char* buf) {
 
 	// todo: receive length first and loop, perhaps subtract len from expected total before loop?	
 	if( ( len = recv( s, buf, sizeof( buf ), 0 ) ) == -1 ){
-		fprintf( stderr, "myftpd: insturction receive error\n" );
+		fprintf( stderr, "myftpd: instruction receive error\n" );
 		exit( 1 );
 	}
 
