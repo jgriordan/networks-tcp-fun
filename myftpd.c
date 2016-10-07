@@ -144,6 +144,7 @@ int delete_file(int s) {
 
 	int resp = check_file(file);
 
+	resp = htons(resp);
 	// send response regarding directory
 	if (send(s, &resp, sizeof(resp), 0) == -1) {
 		fprintf( stderr, "myftpd: error sending directory status\n");
@@ -198,8 +199,9 @@ int list_dir(int s) {
 	// // TODO: send length first
 	
 	len = strlen(buf) + 1;
+	int nlen = htons(len);
 	//send message length
-	if (send(s, &len, sizeof(len), 0) == -1) {	
+	if (send(s, &nlen, sizeof(nlen), 0) == -1) {	
 		fprintf( stderr, "myftpd: error sending size\n");
 	}
 
@@ -227,6 +229,7 @@ int remove_dir(int s) {
 
 	int resp = check_dir(dir);
 
+	resp = htons(resp);
 	// send response regarding directory
 	if (send(s, &resp, sizeof(resp), 0) == -1) {
 		fprintf( stderr, "myftpd: error sending directory status\n");
@@ -293,16 +296,33 @@ int change_dir(int s) {
 	return chdir(dir); // returns 0 on success, -1 error
 }
 
-int receive_instruction(int s, char* buf) {
-	int len;
+int receive_instruction(int s, char* buf) { // This should be okay as long as the length doesnt exceed max line, 
+//just return error for now but client will need to loop through and free when reading large files (like list_dir)
+//returns size sent and stores message in buf
+	int size;
+	int len_s; // length of size message
+	int len_m; // length of message
+
 
 	// todo: receive length first and loop, perhaps subtract len from expected total before loop?	
-	if( ( len = recv( s, buf, sizeof( buf ), 0 ) ) == -1 ){
-		fprintf( stderr, "myftpd: instruction receive error\n" );
+	if( ( len_s = recv( s, &size, sizeof( size ), 0 ) ) == -1 ){
+		fprintf( stderr, "myftpd: size receive error\n" );
+		exit( 1 );
+	}
+
+	size = ntohs(size);
+
+	if (size > MAX_LINE) {
+		fprintf( stderr, "file description longer than expected\n");
+		return -1;
+	}
+
+	if( ( len_m = recv( s, buf, sizeof(buf), 0 ) ) == -1 ){
+		fprintf( stderr, "myftpd: size receive error\n" );
 		exit( 1 );
 	}
 
 	printf( "Received Instruction: %s", buf );			
 	
-	return len;	
+	return size;	
 }
