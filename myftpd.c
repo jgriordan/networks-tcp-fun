@@ -23,8 +23,10 @@
 int handle_input(char* msg, int s);
 int list_dir(int s);
 int remove_dir(int s);
+int delete_file(int s);
 int change_dir(int s);
 int check_dir(char *dir); // checks that the directory exists
+int check_file(char *file);
 int receive_instruction(int s, char* buf);
 
 int main( int argc, char* argv[] ){
