@@ -167,17 +167,26 @@ int list_dir(int s) {
 
 	DIR *dp; // pointer to current directory
 	struct dirent *dep; // information about directory
-	char buf[MAX_LINE];
+	char *buf;
 	int len; // length of message
+	int alcnt = 1; // increment size (count allocs)
 
+	// new method for continually allocating data
+	
+	buf = malloc(sizeof(char)*MAX_LINE);
 	dp = opendir("./"); // open working directory
 
 	if (dp == NULL) return -1; // error opening directory
 
-	while(dep = readdir(dp)) {
+	while((dep = readdir(dp)) != NULL) {
+		if (MAX_LINE*alcnt <= (strlen(buf) + strlen(dep->d_name) + 1)) {
+			// size continually increments by the data added
+			buf = realloc(buf, sizeof(char)*MAX_LINE*(++alcnt));
+		}
 		strcat(buf, dep->d_name);
-		strcat(buf, "\n");
-	}
+		strcat(buf, "\n"); 
+		// allocate more memory
+	} // buffer keeps growing on the heap until we can send it
 	
 	if (closedir(dp) == -1) {
 		fprintf( stderr, "myftpd: could not close directory\n" );
@@ -188,13 +197,17 @@ int list_dir(int s) {
 	
 	len = strlen(buf) + 1;
 	//send message length
-	int* size = &len;
-	if (send(s, size, sizeof(len), 0) == -1) {	
+	if (send(s, &len, sizeof(len), 0) == -1) {	
 		fprintf( stderr, "myftpd: error sending size\n");
 	}
-	//TODO: might loop through if the buffer is not large enough, so send in the readdir loop
-	if (send(s, buf, len, 0) == -1) {	
-		fprintf( stderr, "myftpd: error sending directory listing\n" );
+
+	// loop through for large strings
+	int i;
+	for (i = 0; i < len; i+= MAX_LINE) { // check cases where
+	// we need to send more than one part  
+		if (send(s, buf + i, len, 0) == -1) {	
+			fprintf( stderr, "myftpd: error sending directory listing\n" );
+		}
 	}
 }
 
@@ -231,7 +244,7 @@ int remove_dir(int s) {
 }
 int check_file(char *file) { // checks that the directory exists
 
-	if (access(file, F_OK) == -1) { // directory not found
+	if (access(file, F_OK) == -1) { // file not found
 		return -1;
 	} else {
 		return 1; // positive confirmation
