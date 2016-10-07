@@ -209,6 +209,9 @@ int list_dir(int s) {
 			fprintf( stderr, "myftpd: error sending directory listing\n" );
 		}
 	}
+	// client can concatenate all these strings and stop listening once the length equals the announced length
+
+	free(buf);
 }
 
 int remove_dir(int s) {
