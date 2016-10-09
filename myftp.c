@@ -21,7 +21,7 @@ int main( int argc, char* argv[] ){
 	struct hostent* hp;
 	struct sockaddr_in sin;
 	char* host;
-	char buf[MAX_LINE];
+	char buf[MAX_LINE+1];
 	int i, s, len;
 	uint16_t port;
 	/*struct timeval start, end;*/
@@ -61,10 +61,12 @@ int main( int argc, char* argv[] ){
 		exit( 1 );
 	}
 
+	printf( "Enter your operation (XIT to quit): " );
 	// main (fucking awesome) loop
 	while( fgets( buf, sizeof(buf), stdin ) ){
-		buf[MAX_LINE-1] = '\0';
-		if( !strncmp( buf, "Exit", 4 ) ){
+
+		buf[MAX_LINE] = '\0';
+		if( !strncmp( buf, "XIT", 3 ) ){
 			printf( "Bye bye\n" );
 			break;
 		}
@@ -76,6 +78,7 @@ int main( int argc, char* argv[] ){
 		} else {
 			handle_action(buf, s);
 		}
+		printf( "Enter your operation (XIT to quit): " );
 	}
 
 	close( s );
@@ -92,7 +95,7 @@ int handle_action(char* msg, int s) {
 	} else if (!strncmp("LIS", msg, 3)) {
 		response = list_dir(s);
 
-	} else if (!strncmp("MKD", msg, 3)) {
+	}/* else if (!strncmp("MKD", msg, 3)) {
 
 		response = make_dir(s);
 	} else if (!strncmp("RMD", msg, 3)) {
@@ -100,7 +103,7 @@ int handle_action(char* msg, int s) {
 	
 	} else if (!strncmp("CHD", msg, 3)) {
 		response = change_dir(s); // start change_directory process and return its response
-	}
+	}*/
 	return response;
 	// might print response in each print statement, that way we have the appropriate statement for each case. 
 }
@@ -129,4 +132,26 @@ int send_instruction(int s, char* message) { // This should be okay as long as t
 	}
 	
 	return size;	
+}
+
+int list_dir( int s ){
+	char buf[MAX_LINE+1];
+	uint32_t len;
+	int i;
+
+	buf[MAX_LINE] = '\0';
+
+	if( (recv( s, buf, MAX_LINE, 0 ) ) == -1 ){
+		fprintf( stderr, "myftp: error receiving listing size\n" );
+		return -1;
+	}
+	len = strtoul( buf, 0, 10 );
+
+	for( i = 0; i < len; i += MAX_LINE ){
+		if( (recv( s, buf, MAX_LINE, 0 ) ) == -1 ){
+			fprintf( stderr, "myftp: error receiving listing\n" );
+			return -1;
+		}
+		printf( "%s", buf );
+	}
 }

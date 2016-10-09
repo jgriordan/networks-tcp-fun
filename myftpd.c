@@ -154,6 +154,7 @@ int delete_file(int s) {
 	// send response regarding directory
 	if (send(s, &resp, sizeof(resp), 0) == -1) {
 		fprintf( stderr, "myftpd: error sending directory status\n");
+		exit( 1 );
 	}
 
 	int len;
@@ -182,10 +183,14 @@ int list_dir(int s) {
 
 	// new method for continually allocating data
 	
-	buf = malloc(sizeof(char)*MAX_LINE);
 	dp = opendir("./"); // open working directory
+	if (dp == NULL){
+		fprintf( stderr, "myftpd: error opening directory\n" );
+		return -1;
+	}
 
-	if (dp == NULL) return -1; // error opening directory
+	buf = malloc(sizeof(char)*MAX_LINE);
+	buf[0] = '\0';
 
 	while((dep = readdir(dp)) != NULL) {
 		if (MAX_LINE*alcnt <= (strlen(buf) + strlen(dep->d_name) + 1)) {
@@ -202,21 +207,26 @@ int list_dir(int s) {
 	}
 
 	// send directory
-	// // TODO: send length first
 	
 	len = strlen(buf) + 1;
-	int nlen = htons(len);
+
 	//send message length
-	if (send(s, &nlen, sizeof(nlen), 0) == -1) {	
+	char lenbuf[12];
+	sprintf( lenbuf, "%d", len );
+	if (send(s, lenbuf, strlen(lenbuf)+1, 0) == -1) {	
 		fprintf( stderr, "myftpd: error sending size\n");
+		free( buf );
+		return -1;
 	}
 
 	// loop through for large strings
 	int i;
 	for (i = 0; i < len; i+= MAX_LINE) { // check cases where
-	// we need to send more than one part  
-		if (send(s, buf + i, len, 0) == -1) {	
+	// we need to send more than one part
+		if (send(s, buf + i, len, 0) == -1) {
 			fprintf( stderr, "myftpd: error sending directory listing\n" );
+			free( buf );
+			return -1;
 		}
 	}
 	// client can concatenate all these strings and stop listening once the length equals the announced length
@@ -294,35 +304,32 @@ int make_dir(int s) {
 }
 
 int change_dir(int s) {
-	char dir[MAX_LINE]; 
+	char* dir;
 	if (receive_instruction(s, dir) <= 0) {
 		return -3;
 	}
+	chdir( dir );
 
-	return chdir(dir); // returns 0 on success, -1 error
+	free( dir );
+	return 0; // returns 0 on success, -1 error
 }
 
 int receive_instruction(int s, char* buf) { // This should be okay as long as the length doesnt exceed max line, 
 //just return error for now but client will need to loop through and free when reading large files (like list_dir)
 //returns size sent and stores message in buf
-	int size;
-	int len_s; // length of size message
-	int len_m; // length of message
-
+	int len, i;
+	char lenbuf[MAX_LINE];
+	buf = malloc(sizeof(char)*MAX_LINE);
+	buf[0] = '\0';
 
 	// todo: receive length first and loop, perhaps subtract len from expected total before loop?	
-	if( ( len_s = recv( s, &size, sizeof( size ), 0 ) ) == -1 ){
+	if( recv( s, lenbuf, MAX_LINE, 0 ) == -1 ){
 		fprintf( stderr, "myftpd: size receive error\n" );
-		exit( 1 );
-	}
-
-	size = ntohs(size);
-
-	if (size > MAX_LINE) {
-		fprintf( stderr, "file description longer than expected\n");
 		return -1;
 	}
+	len = strtoul( buf, 0, 10 );
 
+	for( i=0; i < len; i += MAX_LINE ){
 	if( ( len_m = recv( s, buf, sizeof(buf), 0 ) ) == -1 ){
 		fprintf( stderr, "myftpd: size receive error\n" );
 		exit( 1 );
