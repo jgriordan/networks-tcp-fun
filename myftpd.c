@@ -34,6 +34,7 @@ int main( int argc, char* argv[] ){
 	char buf[MAX_LINE];
 	int s, new_s, len, opt;
 	uint16_t port;
+	int response; // response to send back to 
 	/*char timestamp[1024];
 	struct timeval t_of_day;
 	struct tm* local_t;
@@ -101,8 +102,13 @@ int main( int argc, char* argv[] ){
 				break;
 			}
 
-			if (handle_input(buf, new_s) != 0) {
-				fprintf(stderr, "myftpd: failure to complete request\n");
+			response = handle_input(buf, new_s);
+			//	fprintf(stderr, "myftpd: failure to complete request\n");
+			//}
+			response = htons(response);
+			if ( send( new_s, &response, sizeof(response), 0) == -1) {
+				fprintf( stderr, "myftpd: response sending error\n"); 
+				exit( 1 );
 			}
 		}
 

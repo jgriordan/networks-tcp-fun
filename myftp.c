@@ -73,10 +73,60 @@ int main( int argc, char* argv[] ){
 		if( send( s, buf, len, 0 ) == -1 ){
 			fprintf( stderr, "myftp: send error\n" );
 			exit( 1 );
+		} else {
+			handle_action(buf, s);
 		}
 	}
 
 	close( s );
 
 	return 0;
+}
+
+int handle_action(char* msg, int s) {
+	
+	int response = 0;
+	// check for all special 3 char messages
+	if (!strncmp("DEL", msg, 3)) {
+		
+	} else if (!strncmp("LIS", msg, 3)) {
+		response = list_dir(s);
+
+	} else if (!strncmp("MKD", msg, 3)) {
+
+		response = make_dir(s);
+	} else if (!strncmp("RMD", msg, 3)) {
+		response = remove_dir(s);
+	
+	} else if (!strncmp("CHD", msg, 3)) {
+		response = change_dir(s); // start change_directory process and return its response
+	}
+	return response;
+	// might print response in each print statement, that way we have the appropriate statement for each case. 
+}
+
+int send_instruction(int s, char* message) { // This should be okay as long as the length doesnt exceed max line, 
+//just return error for now but client will need to loop through and free when reading large files (like list_dir)
+//returns size sent and stores message in buf
+	int size = strlen(message);
+	int len_s; // length of size message
+	int len_m; // length of message
+	
+	if (size > MAX_LINE) {
+		fprintf( stderr, "file description longer than expected\n");
+		return -1;
+	}
+
+	size = htons(size);
+	if( send( s, &size, sizeof(size), 0 ) == -1 ){
+		fprintf( stderr, "myftp: send error\n" );
+		exit( 1 );
+	}
+
+	if( send( s, message, sizeof(message), 0 ) == -1 ){
+		fprintf( stderr, "myftp: size receive error\n" );
+		exit( 1 );
+	}
+	
+	return size;	
 }
