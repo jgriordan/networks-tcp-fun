@@ -108,27 +108,35 @@ int handle_action(char* msg, int s) {
 	// might print response in each print statement, that way we have the appropriate statement for each case. 
 }
 
+int make_dir(s) {
+
+	char buf[MAX_LINE];
+
+	printf( "Enter the directory name: ");	
+	fgets(buf, MAX_LINE, stdin);
+	send_instruction(s, buf);
+
+}
+
 int send_instruction(int s, char* message) { // This should be okay as long as the length doesnt exceed max line, 
 //just return error for now but client will need to loop through and free when reading large files (like list_dir)
 //returns size sent and stores message in buf
 	int size = strlen(message);
-	int len_s; // length of size message
-	int len_m; // length of message
-	
-	if (size > MAX_LINE) {
-		fprintf( stderr, "file description longer than expected\n");
-		return -1;
-	}
+	int i;
 
-	size = htons(size);
-	if( send( s, &size, sizeof(size), 0 ) == -1 ){
+	char lenbuf[12];
+	sprintf( lenbuf, "%d", size );
+
+	if( send( s, lenbuf, 12, 0 ) == -1 ){
 		fprintf( stderr, "myftp: send error\n" );
 		exit( 1 );
 	}
 
-	if( send( s, message, sizeof(message), 0 ) == -1 ){
-		fprintf( stderr, "myftp: size receive error\n" );
-		exit( 1 );
+	for (i = 0; i < size; i += MAX_LINE) {
+		if( send( s, message + i, MAX_LINE, 0 ) == -1 ){
+			fprintf( stderr, "myftp: size receive error\n" );
+			exit( 1 );
+		}
 	}
 	
 	return size;	
