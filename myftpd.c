@@ -143,7 +143,6 @@ void delete_file(int s) {
 		return;
 	}
 
-<<<<<<< HEAD
 	result = check_file( file );
 
 	printf( "file: %s, result: %d\n", file, result );
@@ -175,45 +174,8 @@ void delete_file(int s) {
 			if( write( s, &netresult, sizeof(uint16_t) ) == -1 )
 				fprintf( stderr, "myftpd: error sending result to client" );
 		}
-=======
-	uint16_t resp = check_file(file);
-	printf("File exists?: %u\n", resp);
-	resp = htons(resp);
-	// send response regarding directory
-	if (send(s, &resp, sizeof(resp), 0) == -1) {
-		fprintf( stderr, "myftpd: error sending directory status\n");
-		exit( 1 );
-	}
-
-	int len = 0;
-	// get answer from client
-	while (len == 0) {
-	if( ( len = recv( s, buf, sizeof( buf ), 0 ) ) == -1 ){
-		fprintf( stderr, "myftpd: instruction receive error\n" );
-		exit( 1 );
-	}
-	}
-	// for some reason this skips
-	// gets an empty buffer
-	printf("received answer: %s\n", buf);
-	short result;
-	printf("strncmp: %i\n", strncmp(buf, "Yes", 3));
-	if (!strncmp(buf, "Yes", 3)) {
-		// string is Yes
-		if (remove(file) == 0) {
-			result = 1; // try to remove directory and return status
-		} else {
-			result = -1;
-		}
-		// 0 on success, otherwise -1
-		printf("removed?: %i\n", result);
-	} else if (!strncmp(buf, "No", 2)) {
-		result = 0;
->>>>>>> f241a60b2a93124358be5ccb6ebf3598de9aa237
 	}
 	send_result(s, result);
-	
-	return result;
 }
 
 int list_dir(int s) {

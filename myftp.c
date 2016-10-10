@@ -102,19 +102,13 @@ void handle_action(char* msg, int s) {
 }
 
 void delete_file(int s){
-<<<<<<< HEAD
 	char buf[MAX_LINE];
-=======
-
-	char* buf;
->>>>>>> f241a60b2a93124358be5ccb6ebf3598de9aa237
 	short result;
 
 	// buf = malloc( sizeof(char)*MAX_LINE );
 
 	printf( "Enter the file name to remove: " );
 	fflush( stdin );
-<<<<<<< HEAD
 	fgets( buf, MAX_LINE, stdin );
 
 	/* TODO: FIX SO WE CAN GET NAMES LARGER THAN MAX_LINE
@@ -126,14 +120,7 @@ void delete_file(int s){
 
 	// trim the \n off the end of buf
 	buf[strlen(buf)-1] = 0;
-=======
-	while( (c = fgetc( stdin )) && c != '\n' && c != EOF ){
-		buf[len++] = c;
-		if( len == alcnt*MAX_LINE )
-			buf = realloc( buf, ++alcnt*sizeof(char)*MAX_LINE );
-	}
 
->>>>>>> f241a60b2a93124358be5ccb6ebf3598de9aa237
 	send_instruction( s, buf );
 
 	result = receive_result( s );
