@@ -249,6 +249,7 @@ int remove_dir(int s) {
 		return -1;
 	}
 
+
 	if( result == 1 ){
 		// get confirmation from client
 		if( receive_instruction( s, &confirm ) <= 0 ){
@@ -269,10 +270,14 @@ int remove_dir(int s) {
 			netresult = htons( result );
 			if( write( s, &netresult, sizeof(uint16_t) ) == -1 )
 				fprintf( stderr, "myftpd: error sending result to client" );
+		} else if (!strncmp(confirm, "No", 2)) {
+			result = 0;
+			send_result(s, result);
 		}
 	}
 	return 0;
 }
+
 int check_file(char *file) { // checks that the directory exists
 
 	if (access(file, F_OK) == -1) { // file not found
