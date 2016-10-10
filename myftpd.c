@@ -146,10 +146,11 @@ int delete_file(int s) {
 	char buf[MAX_LINE];
 
 	if (receive_instruction(s, &file) <= 0) {
-		return -3; // instruction error
+		fprintf( stderr, "myftpd: instruction receive error\n" );
+		exit( 1 );
 	}
 
-	int resp = check_file(file);
+	uint16_t resp = check_file(file);
 
 	resp = htons(resp);
 	// send response regarding directory
@@ -237,7 +238,8 @@ int remove_dir(int s) {
 	char buf[MAX_LINE];
 
 	if (receive_instruction(s, &dir) <= 0) {
-		return -3; // instruction error
+		fprintf( stderr, "myftpd: instruction receive error\n" );
+		exit( 1 );
 	}
 
 	uint16_t resp = check_dir(dir);
@@ -275,16 +277,20 @@ int check_file(char *file) { // checks that the directory exists
 int check_dir(char *dir) { // checks that the directory exists
 
 	DIR *dp; // pointer to current directory
-	struct dirent *dep; // information about directory
+	/*struct dirent *dep; // information about directory
 	struct stat st = {0}; // holds directory status
 	char *dir_name;
-
-	dp = opendir("./"); // open working directory
+	*/
+	strtok(dir, "\n");
+	dp = opendir(dir); // open working directory
 	if (dp == NULL){
-		fprintf( stderr, "myftpd: error opening directory\n" );
+		//fprintf( stderr, "myftpd: error opening directory\n" );
 		return -1;
+	} else {
+		closedir(dp);
+		return 1; //directory found
 	}
-
+	/*
 	while((dep = readdir(dp)) != NULL) {
 		printf("length: %d, directory name: %s, dep->name: %s\n\n", strlen(dep->d_name), dir, dep->d_name);
 		if (!strncmp(dep->d_name, dir, strlen(dep->d_name))) {
@@ -299,6 +305,7 @@ int check_dir(char *dir) { // checks that the directory exists
 	} else {
 		return 1; // positive confirmation
 	}	
+	*/
 }
 
 int make_dir(int s) {
@@ -306,7 +313,8 @@ int make_dir(int s) {
 	struct stat st = {0}; // holds directory status
 
 	if (receive_instruction(s, &dir) <= 0) {
-		return -3; // instruction error
+		fprintf( stderr, "myftpd: instruction receive error\n" );
+		exit( 1 );
 	}
 
 	if (check_dir(dir) == -1) { // directory not found
@@ -327,7 +335,7 @@ int change_dir(int s) {
 		result = -1;
 	else if (check_dir(dir) == -1) // directory not found
 		result = -2;
-	else if( chdir( dir ) == 0 ) // success
+	else if( chdir( dir ) == 0 ) // success // TODO: remove new line, might replace with strtok(dir, "\n");
 		result = 1;
 	else
 		result = -1;
