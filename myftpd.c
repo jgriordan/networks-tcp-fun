@@ -175,6 +175,7 @@ int list_dir(int s) {
 	char *buf;
 	uint16_t len, netlen; // length of message
 	int alcnt = 1; // increment size (count allocs)
+	uint32_t sendlen;
 
 	// new method for continually allocating data
 	
@@ -215,8 +216,8 @@ int list_dir(int s) {
 	int i;
 	for (i = 0; i < len; i+= MAX_LINE) { 
 		// check cases where we need to send more than one part
-
-		if (send(s, buf + i, MAX_LINE, 0) == -1) {
+		sendlen = (len-i < MAX_LINE) ? len-i : MAX_LINE;
+		if( write(s, buf + i, sendlen) == -1 ){
 			fprintf( stderr, "myftpd: error sending directory listing\n" );
 			free( buf );
 			return -1;

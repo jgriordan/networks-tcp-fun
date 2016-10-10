@@ -177,11 +177,15 @@ void remove_dir(int s) {
 
 		send_instruction( s, buf );
 		
-		result = receive_result( s );
-		if( result == 1 )
-			printf( "Directory deleted\n" );
-		else if( result == -1 )
-			printf( "Failed to delete directory\n" );
+		if( !strncmp( buf, "No", 2 ) )
+			printf( "Delete abandoned by the user!\n" );
+		else{
+			result = receive_result( s );
+			if( result == 1 )
+				printf( "Directory deleted\n" );
+			else if( result == -1 )
+				printf( "Failed to delete directory\n" );
+		}
 	} else if( result == -1 )
 		printf( "The directory does not exist on the server\n" );
 }
