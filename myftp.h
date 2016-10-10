@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 void handle_action( char*, int );
-void delete_dir( int );
+void delete_file( int );
 void list_dir( int );
 void make_dir( int );
 void remove_dir( int );

@@ -20,11 +20,11 @@
 #define MAX_PENDING 5
 #define MAX_LINE 256
 
-int handle_input(char* msg, int s);
+void handle_input(char* msg, int s);
 int list_dir(int s);
 int remove_dir(int s);
 int delete_file(int s);
-int change_dir(int s);
+void change_dir(int s);
 int check_dir(char *dir); // checks that the directory exists
 int check_file(char *file);
 int receive_instruction(int s, char** buf);
@@ -103,15 +103,7 @@ int main( int argc, char* argv[] ){
 				break;
 			}
 
-			response = handle_input(buf, new_s);
-			//	fprintf(stderr, "myftpd: failure to complete request\n");
-			//}
-			response = htons(response);
-/*			if ( send( new_s, &response, sizeof(response), 0) == -1) {
-				fprintf( stderr, "myftpd: response sending error\n"); 
-				exit( 1 );
-			}
-*/ // TODO: send and receive response
+			handle_input(buf, new_s);
 		}
 
 		close( new_s );
@@ -120,7 +112,7 @@ int main( int argc, char* argv[] ){
 	return 0;
 }
 
-int handle_input(char* msg, int s) {
+void handle_input(char* msg, int s) {
 	
 	int response = 0;
 	// check for all special 3 char messages
@@ -136,9 +128,8 @@ int handle_input(char* msg, int s) {
 		response = remove_dir(s);
 	
 	} else if (!strncmp("CHD", msg, 3)) {
-		response = change_dir(s); // start change_directory process and return its response
+		change_dir(s); // start change_directory process and return its response
 	}
-	return response;
 }
 
 int delete_file(int s) {
@@ -221,14 +212,15 @@ int list_dir(int s) {
 
 	// loop through for large strings
 	int i;
-	for (i = 0; i < len; i+= MAX_LINE) { // check cases where
-	// we need to send more than one part
+	for (i = 0; i < len; i+= MAX_LINE) { 
+		// check cases where we need to send more than one part
 		if (send(s, buf + i, len, 0) == -1) {
 			fprintf( stderr, "myftpd: error sending directory listing\n" );
 			free( buf );
 			return -1;
 		}
-		printf("Sent %s\n", buf);
+		// TODO: remove debugging
+		// printf("Sent %s\n", buf);
 	}
 	// client can concatenate all these strings and stop listening once the length equals the announced length
 
@@ -237,36 +229,47 @@ int list_dir(int s) {
 
 int remove_dir(int s) {
 
-	char* dir; 
-	char buf[MAX_LINE];
+	char* dir;
+	char* confirm;
+	uint16_t result, netresult;
 
 	if (receive_instruction(s, &dir) <= 0) {
 		fprintf( stderr, "myftpd: instruction receive error\n" );
 		exit( 1 );
 	}
 
-	uint16_t resp = check_dir(dir);
+	result = check_dir(dir);
 
-	resp = htons(resp);
+	netresult = htons( result );
 	// send response regarding directory
-	if (send(s, &resp, sizeof(resp), 0) == -1) {
+	if (send(s, &netresult, sizeof(uint16_t), 0) == -1) {
 		fprintf( stderr, "myftpd: error sending directory status\n");
+		return -1;
 	}
 
-	int len;
-	// get answer from client
-	if( ( len = recv( s, buf, sizeof( buf ), 0 ) ) == -1 ){
-		fprintf( stderr, "myftpd: instruction receive error\n" );
-		exit( 1 );
-	}
+	if( result == 1 ){
+		// get confirmation from client
+		if( receive_instruction( s, &confirm ) <= 0 ){
+			fprintf( stderr, "myftpd: error receiving client confirmation\n" );
+			return -1;
+		}
 
-	if (!strncmp(buf, "Yes", 3)) {
-		// string is Yes
-		return rmdir(dir); // try to remove directory and return status
-		// 0 on success, otherwise -1
-	} else if (!strncmp(buf, "No", 2)) {
-		return 0;
+		if (!strncmp(confirm, "Yes", 3)) {
+			// success
+			if( rmdir( dir ) == 0 )
+				result = 1;
+			// otherwise failure
+			else
+				result = -1;
+
+			printf( "deleted dir: %s, result: %d\n", dir, result );
+
+			netresult = htons( result );
+			if( write( s, &netresult, sizeof(uint16_t) ) == -1 )
+				fprintf( stderr, "myftpd: error sending result to client" );
+		}
 	}
+	return 0;
 }
 int check_file(char *file) { // checks that the directory exists
 
@@ -320,7 +323,8 @@ int make_dir(int s) {
 		exit( 1 );
 	}
 
-	if (check_dir(dir) == -1) { // directory not found
+	// directory not found
+	if( check_dir( dir ) == -1 ){
 		return mkdir(dir, 0700); // returns 0 on success, -1 on error
 		
 	} else {
@@ -329,7 +333,7 @@ int make_dir(int s) {
 
 }
 
-int change_dir(int s) {
+void change_dir(int s) {
 	char* dir;
 	short result;
 	uint16_t netresult;
@@ -346,16 +350,10 @@ int change_dir(int s) {
 	printf( "changed dir: %s, result: %d\n", dir, result );
 
 	netresult = htons( result );
-	if( write( s, &netresult, sizeof(uint16_t) ) == -1 ){
+	if( write( s, &netresult, sizeof(uint16_t) ) == -1 )
 		fprintf( stderr, "myftpd: error sending result to client" );
-		free( dir );
-		return -1;
-	}
-
-	printf( "????\n" );
 
 	free( dir );
-	return 0;
 }
 
 int receive_instruction(int s, char** buf) {

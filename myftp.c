@@ -91,7 +91,7 @@ void handle_action(char* msg, int s) {
 
 	// check for all special 3 char messages
 	if (!strncmp("DEL", msg, 3))
-		delete_dir( s );
+		delete_file( s );
 	else if (!strncmp("LIS", msg, 3))
 		list_dir( s );
 	else if (!strncmp("MKD", msg, 3))
@@ -102,7 +102,7 @@ void handle_action(char* msg, int s) {
 		change_dir( s );
 }
 
-void delete_dir(int s){
+void delete_file(int s){
 
 }
 
@@ -125,12 +125,12 @@ void list_dir(int s){
 
 	
 	for( i = 0; i < len; i += MAX_LINE ){
-		if( (recv( s, buf, MAX_LINE, 0 ) ) == -1 ){
+		if( read( s, buf, MAX_LINE ) == -1 ){
 			fprintf( stderr, "myftp: error receiving listing\n" );
 			return;
 		}
 		printf( "%s", buf );
-		printf("received bytes: %i, expect: %i", i, len);
+		//printf("received bytes: %i, expect: %i", i, len);
 	}
 
 	
@@ -142,9 +142,10 @@ void make_dir(int s) {
 	char buf[MAX_LINE];
 	short result;
 
-	printf( "Enter the directory name: ");	
-	fgets(buf, MAX_LINE, stdin);
-	send_instruction(s, buf);
+	printf( "Enter the directory name to create: ");
+	fflush( stdin );
+	fgets( buf, MAX_LINE, stdin );
+	send_instruction( s, buf );
 
 	result = receive_result( s );
 	if( result == 1 )
@@ -153,19 +154,43 @@ void make_dir(int s) {
 		printf( "Error in making directory\n" );
 	else if( result == -2 )
 		printf( "The directory already exists on server\n" );
-
-
 }
 
 void remove_dir(int s) {
+	char buf[MAX_LINE];
+	short result;
 
+	printf( "Enter the directory name to remove: " );
+	fflush( stdin );
+	fgets( buf, MAX_LINE, stdin );
+	send_instruction( s, buf );
+
+	result = receive_result( s );
+	if( result == 1 ){
+		buf[0] = '\0';
+
+		while( strncmp( buf, "Yes", 3 ) && strncmp( buf, "No", 2 ) ){
+			printf( "Confirm you want to delete the directory: \"Yes\" to delete, \"No\" to ignore: " );
+			fflush( stdin );
+			fgets( buf, MAX_LINE, stdin );
+		}
+
+		send_instruction( s, buf );
+		
+		result = receive_result( s );
+		if( result == 1 )
+			printf( "Directory deleted\n" );
+		else if( result == -1 )
+			printf( "Failed to delete directory\n" );
+	} else if( result == -1 )
+		printf( "The directory does not exist on the server\n" );
 }
 
 void change_dir(int s) {
 	char buf[MAX_LINE];
 	short result;
-	printf("READING!!\n");
 	printf( "Enter the directory name: " );
+	fflush( stdin );
 	fgets( buf, MAX_LINE, stdin );
 
 	send_instruction( s, buf );
