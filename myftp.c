@@ -188,6 +188,8 @@ void remove_dir(int s) {
 		}
 	} else if( result == -1 )
 		printf( "The directory does not exist on the server\n" );
+	else
+		printf( "WTF: %d\n", result );
 }
 
 void change_dir(int s) {

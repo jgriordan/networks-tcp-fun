@@ -22,7 +22,8 @@
 
 void handle_input(char* msg, int s);
 int list_dir(int s);
-int remove_dir(int s);
+void remove_dir(int s);
+void make_dir(int s);
 int delete_file(int s);
 void change_dir(int s);
 int check_dir(char *dir); // checks that the directory exists
@@ -114,27 +115,25 @@ int main( int argc, char* argv[] ){
 }
 
 void handle_input(char* msg, int s) {
-	
-	int response = 0;
 	// check for all special 3 char messages
 	if (!strncmp("DEL", msg, 3)) {
 		
 	} else if (!strncmp("LIS", msg, 3)) {
-		response = list_dir(s);
+		list_dir(s);
 
 	} else if (!strncmp("MKD", msg, 3)) {
-		response = make_dir(s);
+		make_dir(s);
 
 	} else if (!strncmp("RMD", msg, 3)) {
-		response = remove_dir(s);
+		remove_dir(s);
 	
 	} else if (!strncmp("CHD", msg, 3)) {
-		change_dir(s); // start change_directory process and return its response
+		// start change_directory process and return its response
+		change_dir(s);
 	}
 }
 
 int delete_file(int s) {
-
 	char* file; 
 	char buf[MAX_LINE];
 
@@ -169,7 +168,6 @@ int delete_file(int s) {
 }
 
 int list_dir(int s) {
-
 	DIR *dp; // pointer to current directory
 	struct dirent *dep; // information about directory
 	char *buf;
@@ -230,32 +228,34 @@ int list_dir(int s) {
 	free(buf);
 }
 
-int remove_dir(int s) {
-
+void remove_dir(int s) {
 	char* dir;
 	char* confirm;
 	uint16_t result, netresult;
 
 	if (receive_instruction(s, &dir) <= 0) {
 		fprintf( stderr, "myftpd: instruction receive error\n" );
-		exit( 1 );
+		return;
 	}
 
 	result = check_dir(dir);
+
+	short value = result;
+	printf( "result: %d\n", value );
 
 	netresult = htons( result );
 	// send response regarding directory
 	if (send(s, &netresult, sizeof(uint16_t), 0) == -1) {
 		fprintf( stderr, "myftpd: error sending directory status\n");
-		return -1;
+		return;
 	}
 
-
+	// directory exists
 	if( result == 1 ){
 		// get confirmation from client
 		if( receive_instruction( s, &confirm ) <= 0 ){
 			fprintf( stderr, "myftpd: error receiving client confirmation\n" );
-			return -1;
+			return;
 		}
 
 		if (!strncmp(confirm, "Yes", 3)) {
@@ -271,12 +271,8 @@ int remove_dir(int s) {
 			netresult = htons( result );
 			if( write( s, &netresult, sizeof(uint16_t) ) == -1 )
 				fprintf( stderr, "myftpd: error sending result to client" );
-		} else if (!strncmp(confirm, "No", 2)) {
-			result = 0;
-			send_result(s, result);
 		}
 	}
-	return 0;
 }
 
 int check_file(char *file) { // checks that the directory exists
@@ -291,10 +287,6 @@ int check_file(char *file) { // checks that the directory exists
 int check_dir(char *dir) { // checks that the directory exists
 
 	DIR *dp; // pointer to current directory
-	/*struct dirent *dep; // information about directory
-	struct stat st = {0}; // holds directory status
-	char *dir_name;
-	*/
 	strtok(dir, "\n");
 	dp = opendir(dir); // open working directory
 	if (dp == NULL){
@@ -304,43 +296,31 @@ int check_dir(char *dir) { // checks that the directory exists
 		closedir(dp);
 		return 1; //directory found
 	}
-	/*
-	while((dep = readdir(dp)) != NULL) {
-		printf("length: %d, directory name: %s, dep->name: %s\n\n", strlen(dep->d_name), dir, dep->d_name);
-		if (!strncmp(dep->d_name, dir, strlen(dep->d_name))) {
-			dir_name = dep->d_name;
-			printf( "true comparison!" );
-			break;
-		}
-	}
-			
-	if (stat(dir_name, &st) == -1) { // directory not found
-		return -1;
-	} else {
-		return 1; // positive confirmation
-	}	
-	*/
 }
 
-int make_dir(int s) {
+void make_dir(int s) {
 	char* dir; 
 	struct stat st = {0}; // holds directory status
 	short result;
 
-	if (receive_instruction(s, &dir) <= 0) {
+	if( receive_instruction( s, &dir ) <= 0 ){
 		fprintf( stderr, "myftpd: instruction receive error\n" );
-		exit( 1 );
+		return;
 	}
 
-	if( check_dir( dir ) == -1 ){	
-		result =  mkdir(dir, 0700); // returns 0 on success, -1 on error
-	} else {
-		result = -2; // directory found
-	}
+	// directory doesn't exist
+	if( check_dir( dir ) == -1 ){
+		// successful mkdir
+		if( !mkdir( dir, 0700 ) )
+			result = 1;
+		// otherwise failure to create dir
+		else
+			result = -1;
+	// directory exists
+	} else
+		result = -2;
 	
 	send_result(s, result);
-	return result;
-
 }
 
 void change_dir(int s) {
@@ -370,7 +350,6 @@ void change_dir(int s) {
 }
 
 void send_result(int s, short result) {
-
 	uint16_t netresult = htons( result );
 	if( write( s, &netresult, sizeof(uint16_t) ) == -1 )
 		fprintf( stderr, "myftpd: error sending result to client" );
