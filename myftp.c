@@ -103,6 +103,33 @@ void handle_action(char* msg, int s) {
 }
 
 void delete_file(int s){
+	char buf[MAX_LINE];
+	short result;
+
+	printf( "Enter the file name to remove: " );
+	fflush( stdin );
+	fgets( buf, MAX_LINE, stdin );
+	send_instruction( s, buf );
+
+	result = receive_result( s );
+	if( result == 1 ){
+		buf[0] = '\0';
+
+		while( strncmp( buf, "Yes", 3 ) && strncmp( buf, "No", 2 ) ){
+			printf( "Confirm you want to delete the file: \"Yes\" to delete, \"No\" to ignore: " );
+			fflush( stdin );
+			fgets( buf, MAX_LINE, stdin );
+		}
+
+		send_instruction( s, buf );
+		
+		result = receive_result( s );
+		if( result == 1 )
+			printf( "File deleted\n" );
+		else if( result == -1 )
+			printf( "Failed to delete file \n" );
+	} else if( result == -1 )
+		printf( "The file does not exist on the server\n" );
 
 }
 

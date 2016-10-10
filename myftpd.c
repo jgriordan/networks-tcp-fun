@@ -118,7 +118,7 @@ void handle_input(char* msg, int s) {
 	int response = 0;
 	// check for all special 3 char messages
 	if (!strncmp("DEL", msg, 3)) {
-		
+		response = delete_file(s);
 	} else if (!strncmp("LIS", msg, 3)) {
 		response = list_dir(s);
 
@@ -159,13 +159,17 @@ int delete_file(int s) {
 		exit( 1 );
 	}
 
+	short result;
 	if (!strncmp(buf, "Yes", 3)) {
 		// string is Yes
-		return remove(file); // try to remove directory and return status
+		result = remove(file); // try to remove directory and return status
 		// 0 on success, otherwise -1
 	} else if (!strncmp(buf, "No", 2)) {
-		return 0;
+		result = 0;
 	}
+	send_result(s, result);
+	
+	return result;
 }
 
 int list_dir(int s) {
