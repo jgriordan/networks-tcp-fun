@@ -240,7 +240,7 @@ int remove_dir(int s) {
 		return -3; // instruction error
 	}
 
-	int resp = check_dir(dir);
+	uint16_t resp = check_dir(dir);
 
 	resp = htons(resp);
 	// send response regarding directory
@@ -274,9 +274,24 @@ int check_file(char *file) { // checks that the directory exists
 
 int check_dir(char *dir) { // checks that the directory exists
 
+	DIR *dp; // pointer to current directory
+	struct dirent *dep; // information about directory
 	struct stat st = {0}; // holds directory status
+	char *dir_name;
 
-	if (stat(dir, &st) == -1) { // directory not found
+	dp = opendir("./"); // open working directory
+	if (dp == NULL){
+		fprintf( stderr, "myftpd: error opening directory\n" );
+		return -1;
+	}
+
+	while((dep = readdir(dp)) != NULL) {
+		if (!strncmp(dep->d_name, dir, strlen(dir))) {
+			dir_name = dep->d_name;
+		}
+	}
+			
+	if (stat(dir_name, &st) == -1) { // directory not found
 		return -1;
 	} else {
 		return 1; // positive confirmation
@@ -291,7 +306,7 @@ int make_dir(int s) {
 		return -3; // instruction error
 	}
 
-	if (stat(dir, &st) == -1) { // directory not found
+	if (check_dir(dir) == -1) { // directory not found
 		return mkdir(dir, 0700); // returns 0 on success, -1 on error
 		
 	} else {
@@ -302,14 +317,12 @@ int make_dir(int s) {
 
 int change_dir(int s) {
 	char* dir;
-	
 	short result;
 	uint16_t netresult;
-	struct stat st; // holds directory status
 
 	if (receive_instruction(s, &dir) <= 0)
 		result = -1;
-	else if (stat(dir, &st) == -1) // directory not found
+	else if (check_dir(dir) == -1) // directory not found
 		result = -2;
 	else if( chdir( dir ) == 0 ) // success
 		result = 1;
