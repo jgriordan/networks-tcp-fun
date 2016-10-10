@@ -286,7 +286,8 @@ int check_dir(char *dir) { // checks that the directory exists
 	}
 
 	while((dep = readdir(dp)) != NULL) {
-		if (!strncmp(dep->d_name, dir, strlen(dir))) {
+		printf("directory name: %s, dep->name: %s", dir, dep->d_name);
+		if (!strncmp(dep->d_name, dir, strlen(dep->d_name))) {
 			dir_name = dep->d_name;
 		}
 	}
