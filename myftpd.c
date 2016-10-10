@@ -24,7 +24,7 @@ void handle_input(char* msg, int s);
 int list_dir(int s);
 void remove_dir(int s);
 void make_dir(int s);
-int delete_file(int s);
+void delete_file(int s);
 void change_dir(int s);
 int check_dir(char *dir); // checks that the directory exists
 int check_file(char *file);
@@ -117,7 +117,7 @@ int main( int argc, char* argv[] ){
 void handle_input(char* msg, int s) {
 	// check for all special 3 char messages
 	if (!strncmp("DEL", msg, 3)) {
-		
+		delete_file(s);
 	} else if (!strncmp("LIS", msg, 3)) {
 		list_dir(s);
 
@@ -133,37 +133,47 @@ void handle_input(char* msg, int s) {
 	}
 }
 
-int delete_file(int s) {
-	char* file; 
-	char buf[MAX_LINE];
+void delete_file(int s) {
+	char* file;
+	char* confirm;
+	uint16_t result, netresult;
 
 	if (receive_instruction(s, &file) <= 0) {
 		fprintf( stderr, "myftpd: instruction receive error\n" );
-		exit( 1 );
+		return;
 	}
 
-	uint16_t resp = check_file(file);
+	result = check_file( file );
 
-	resp = htons(resp);
-	// send response regarding directory
-	if (send(s, &resp, sizeof(resp), 0) == -1) {
-		fprintf( stderr, "myftpd: error sending directory status\n");
-		exit( 1 );
+	printf( "file: %s, result: %d\n", file, result );
+
+	netresult = htons( result );
+	// send response regarding file existence
+	if (send(s, &netresult, sizeof(uint16_t), 0) == -1) {
+		fprintf( stderr, "myftpd: error sending file status\n");
+		return;
 	}
 
-	int len;
-	// get answer from client
-	if( ( len = recv( s, buf, sizeof( buf ), 0 ) ) == -1 ){
-		fprintf( stderr, "myftpd: instruction receive error\n" );
-		exit( 1 );
-	}
+	// file exists
+	if( result == 1 ){
+		// get confirmation from client
+		if( receive_instruction( s, &confirm ) <= 0 ){
+			fprintf( stderr, "myftpd: error receiving client confirmation\n" );
+			return;
+		}
 
-	if (!strncmp(buf, "Yes", 3)) {
-		// string is Yes
-		return remove(file); // try to remove directory and return status
-		// 0 on success, otherwise -1
-	} else if (!strncmp(buf, "No", 2)) {
-		return 0;
+		if (!strncmp(confirm, "Yes", 3)) {
+			// success
+			if( !remove( file ) )
+				result = 1;
+			// otherwise failure
+			else
+				result = -1;
+
+			netresult = htons( result );
+			if( write( s, &netresult, sizeof(uint16_t) ) == -1 )
+				fprintf( stderr, "myftpd: error sending result to client" );
+		}
 	}
 }
 
@@ -202,7 +212,6 @@ int list_dir(int s) {
 
 	//send message length
 	len = strlen(buf) + 1;
-	printf( "Sending %i bytes\n", len);
 	netlen = htons( len );
 	if( write( s, &netlen, sizeof(uint16_t) ) == -1 ){
 		fprintf( stderr, "myftpd: error sending length\n" );
@@ -220,8 +229,6 @@ int list_dir(int s) {
 			free( buf );
 			return -1;
 		}
-		// TODO: remove debugging
-		// printf("Sent %s\n", buf);
 	}
 	// client can concatenate all these strings and stop listening once the length equals the announced length
 
@@ -239,9 +246,6 @@ void remove_dir(int s) {
 	}
 
 	result = check_dir(dir);
-
-	short value = result;
-	printf( "result: %d\n", value );
 
 	netresult = htons( result );
 	// send response regarding directory
@@ -266,8 +270,6 @@ void remove_dir(int s) {
 			else
 				result = -1;
 
-			printf( "deleted dir: %s, result: %d\n", dir, result );
-
 			netresult = htons( result );
 			if( write( s, &netresult, sizeof(uint16_t) ) == -1 )
 				fprintf( stderr, "myftpd: error sending result to client" );
@@ -275,13 +277,14 @@ void remove_dir(int s) {
 	}
 }
 
-int check_file(char *file) { // checks that the directory exists
-
-	if (access(file, F_OK) == -1) { // file not found
+// checks that file exists
+int check_file(char *file) {
+	// exists
+	if( access( file, F_OK ) != -1 )
+		return 1;
+	// doesn't exist
+	else
 		return -1;
-	} else {
-		return 1; // positive confirmation
-	}	
 }
 
 int check_dir(char *dir) { // checks that the directory exists
@@ -367,8 +370,6 @@ int receive_instruction(int s, char** buf) {
 		return -1;
 	}
 	len = ntohl( len );
-
-	printf( "length: %u\n", len );
 
 	*buf = malloc( len );
 

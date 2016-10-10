@@ -102,21 +102,24 @@ void handle_action(char* msg, int s) {
 }
 
 void delete_file(int s){
-	char* buf;
+	char buf[MAX_LINE];
 	short result;
-	int alcnt = 1;
-	uint32_t len = 0;
-	char c;
 
-	buf = malloc( sizeof(char)*MAX_LINE );
+	// buf = malloc( sizeof(char)*MAX_LINE );
 
 	printf( "Enter the file name to remove: " );
 	fflush( stdin );
-	while( (c = fgetc( stdin ) && c != '\n') != EOF ){
+	fgets( buf, MAX_LINE, stdin );
+
+	/* TODO: FIX SO WE CAN GET NAMES LARGER THAN MAX_LINE
+	while( c = fgetc( stdin ) && c != '\n' && c != EOF ){
 		buf[len++] = c;
 		if( len == alcnt*MAX_LINE )
 			buf = realloc( buf, ++alcnt*sizeof(char)*MAX_LINE );
-	}
+	} */
+
+	// trim the \n off the end of buf
+	buf[strlen(buf)-1] = 0;
 	send_instruction( s, buf );
 
 	result = receive_result( s );
@@ -151,16 +154,13 @@ void list_dir(int s){
 
 	buf[MAX_LINE] = '\0';
 	while (netlen == 0) { // sends an empty message, so skip those cases
-	if( read( s, &netlen, sizeof(uint16_t) ) == -1 ){
-		fprintf( stderr, "myftp: error receiving listing size\n" );
-		return;
-	}
+		if( read( s, &netlen, sizeof(uint16_t) ) == -1 ){
+			fprintf( stderr, "myftp: error receiving listing size\n" );
+			return;
+		}
 	}
 	
-	printf("netlen: %u\n", netlen);
 	len = ntohs( netlen );
-	printf("len: %u\n", len);
-
 	
 	for( i = 0; i < len; i += MAX_LINE ){
 		if( read( s, buf, MAX_LINE ) == -1 ){
@@ -257,8 +257,6 @@ void send_instruction(int s, char* message) {
 	}
 
 	len = ntohl( len );
-
-	printf( "length: %u\n", len );
 
 	// send the actual message
 	for (i = 0; i < len; i += MAX_LINE) {
