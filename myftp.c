@@ -64,7 +64,7 @@ int main( int argc, char* argv[] ){
 
 	printf( "Enter your operation (XIT to quit): " );
 	// main loop
-	while( fgets( buf, sizeof(buf), stdin ) ){
+	while( fgets( buf, MAX_LINE, stdin ) ){
 
 		buf[MAX_LINE] = '\0';
 		if( !strncmp( buf, "XIT", 3 ) ){
@@ -130,10 +130,21 @@ void list_dir(int s){
 
 void make_dir(int s) {
 	char buf[MAX_LINE];
+	short result;
 
 	printf( "Enter the directory name: ");	
 	fgets(buf, MAX_LINE, stdin);
 	send_instruction(s, buf);
+
+	result = receive_result( s );
+	if( result == 1 )
+		printf( "The directory was successfully made\n" );
+	else if( result == -1 )
+		printf( "Error in making directory\n" );
+	else if( result == -2 )
+		printf( "The directory already exists on server\n" );
+
+
 }
 
 void remove_dir(int s) {
