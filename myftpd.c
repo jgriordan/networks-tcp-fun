@@ -28,6 +28,7 @@ void change_dir(int s);
 int check_dir(char *dir); // checks that the directory exists
 int check_file(char *file);
 int receive_instruction(int s, char** buf);
+void send_result(int s, short result);
 
 int main( int argc, char* argv[] ){
 	struct sockaddr_in sin, client_addr;
@@ -122,8 +123,8 @@ void handle_input(char* msg, int s) {
 		response = list_dir(s);
 
 	} else if (!strncmp("MKD", msg, 3)) {
-
 		response = make_dir(s);
+
 	} else if (!strncmp("RMD", msg, 3)) {
 		response = remove_dir(s);
 	
@@ -318,19 +319,21 @@ int check_dir(char *dir) { // checks that the directory exists
 int make_dir(int s) {
 	char* dir; 
 	struct stat st = {0}; // holds directory status
+	short result;
 
 	if (receive_instruction(s, &dir) <= 0) {
 		fprintf( stderr, "myftpd: instruction receive error\n" );
 		exit( 1 );
 	}
 
-	// directory not found
-	if( check_dir( dir ) == -1 ){
-		return mkdir(dir, 0700); // returns 0 on success, -1 on error
-		
+	if( check_dir( dir ) == -1 ){	
+		result =  mkdir(dir, 0700); // returns 0 on success, -1 on error
 	} else {
-		return -2; //
+		result = -2; // directory found
 	}
+	
+	send_result(s, result);
+	return result;
 
 }
 
@@ -350,11 +353,22 @@ void change_dir(int s) {
 
 	printf( "changed dir: %s, result: %d\n", dir, result );
 
+	send_result(s, result);
+/*
 	netresult = htons( result );
 	if( write( s, &netresult, sizeof(uint16_t) ) == -1 )
 		fprintf( stderr, "myftpd: error sending result to client" );
 
+*/
 	free( dir );
+}
+
+void send_result(int s, short result) {
+
+	uint16_t netresult = htons( result );
+	if( write( s, &netresult, sizeof(uint16_t) ) == -1 )
+		fprintf( stderr, "myftpd: error sending result to client" );
+
 }
 
 int receive_instruction(int s, char** buf) {
