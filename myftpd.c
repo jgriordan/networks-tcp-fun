@@ -214,6 +214,7 @@ int list_dir(int s) {
 	int i;
 	for (i = 0; i < len; i+= MAX_LINE) { 
 		// check cases where we need to send more than one part
+
 		if (send(s, buf + i, len, 0) == -1) {
 			fprintf( stderr, "myftpd: error sending directory listing\n" );
 			free( buf );
