@@ -210,6 +210,7 @@ int list_dir(int s) {
 
 	//send message length
 	len = strlen(buf) + 1;
+	printf( "Sending %i bytes\n", len);
 	netlen = htons( len );
 	if( write( s, &netlen, sizeof(uint16_t) ) == -1 ){
 		fprintf( stderr, "myftpd: error sending length\n" );
@@ -226,6 +227,7 @@ int list_dir(int s) {
 			free( buf );
 			return -1;
 		}
+		printf("Sent %s\n", buf);
 	}
 	// client can concatenate all these strings and stop listening once the length equals the announced length
 

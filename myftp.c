@@ -108,16 +108,20 @@ void delete_dir(int s){
 
 void list_dir(int s){
 	char buf[MAX_LINE+1];
-	uint16_t len;
+	uint16_t len, netlen = 0;
 	int i;
 
 	buf[MAX_LINE] = '\0';
-
-	if( read( s, &len, sizeof(uint16_t) ) == -1 ){
+	while (netlen == 0) {
+	if( read( s, &netlen, sizeof(uint16_t) ) == -1 ){
 		fprintf( stderr, "myftp: error receiving listing size\n" );
 		return;
 	}
-	len = ntohs( len );
+	}
+	
+	printf("netlen: %u\n", netlen);
+	len = ntohs( netlen );
+	printf("len: %u\n", len);
 
 	for( i = 0; i < len; i += MAX_LINE ){
 		if( (recv( s, buf, MAX_LINE, 0 ) ) == -1 ){
@@ -125,7 +129,10 @@ void list_dir(int s){
 			return;
 		}
 		printf( "%s", buf );
+		printf("received bytes: %i, expect: %i", i, len);
 	}
+	// TODO: need to ensure there is nothing else coming again, the length
+	// sometimes receives the end of a message, not the actual length, and interprets it wrong.
 }
 
 void make_dir(int s) {
@@ -154,7 +161,7 @@ void remove_dir(int s) {
 void change_dir(int s) {
 	char buf[MAX_LINE];
 	short result;
-
+	printf("READING!!\n");
 	printf( "Enter the directory name: " );
 	fgets( buf, MAX_LINE, stdin );
 
