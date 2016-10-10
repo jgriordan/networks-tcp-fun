@@ -5,6 +5,7 @@
 
 // usage: myftp server_name port
 
+#include "myftp.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -62,7 +63,7 @@ int main( int argc, char* argv[] ){
 	}
 
 	printf( "Enter your operation (XIT to quit): " );
-	// main (fucking awesome) loop
+	// main loop
 	while( fgets( buf, sizeof(buf), stdin ) ){
 
 		buf[MAX_LINE] = '\0';
@@ -86,80 +87,111 @@ int main( int argc, char* argv[] ){
 	return 0;
 }
 
-int handle_action(char* msg, int s) {
-	
-	int response = 0;
+void handle_action(char* msg, int s) {
+
 	// check for all special 3 char messages
-	if (!strncmp("DEL", msg, 3)) {
-		
-	} else if (!strncmp("LIS", msg, 3)) {
-		response = list_dir(s);
-
-	}/* else if (!strncmp("MKD", msg, 3)) {
-
-		response = make_dir(s);
-	} else if (!strncmp("RMD", msg, 3)) {
-		response = remove_dir(s);
-	
-	} else if (!strncmp("CHD", msg, 3)) {
-		response = change_dir(s); // start change_directory process and return its response
-	}*/
-	return response;
-	// might print response in each print statement, that way we have the appropriate statement for each case. 
+	if (!strncmp("DEL", msg, 3))
+		delete_dir( s );
+	else if (!strncmp("LIS", msg, 3))
+		list_dir( s );
+	else if (!strncmp("MKD", msg, 3))
+		make_dir( s );
+	else if (!strncmp("RMD", msg, 3))
+		remove_dir( s );
+	else if (!strncmp("CHD", msg, 3))
+		change_dir( s );
 }
 
-int make_dir(s) {
+void delete_dir(int s){
 
+}
+
+void list_dir(int s){
+	char buf[MAX_LINE+1];
+	uint16_t len;
+	int i;
+
+	buf[MAX_LINE] = '\0';
+
+	if( read( s, &len, sizeof(uint16_t) ) == -1 ){
+		fprintf( stderr, "myftp: error receiving listing size\n" );
+		return;
+	}
+	len = ntohs( len );
+
+	for( i = 0; i < len; i += MAX_LINE ){
+		if( (recv( s, buf, MAX_LINE, 0 ) ) == -1 ){
+			fprintf( stderr, "myftp: error receiving listing\n" );
+			return;
+		}
+		printf( "%s", buf );
+	}
+}
+
+void make_dir(int s) {
 	char buf[MAX_LINE];
 
 	printf( "Enter the directory name: ");	
 	fgets(buf, MAX_LINE, stdin);
 	send_instruction(s, buf);
+}
+
+void remove_dir(int s) {
 
 }
 
-int send_instruction(int s, char* message) { // This should be okay as long as the length doesnt exceed max line, 
-//just return error for now but client will need to loop through and free when reading large files (like list_dir)
-//returns size sent and stores message in buf
-	int size = strlen(message);
+void change_dir(int s) {
+	char buf[MAX_LINE];
+	short result;
+
+	printf( "Enter the directory name: " );
+	fgets( buf, MAX_LINE, stdin );
+
+	send_instruction( s, buf );
+
+	result = receive_result( s );
+	if( result == 1 )
+		printf( "Changed current directory\n" );
+	else if( result == -1 )
+		printf( "Error in changing directory\n" );
+	else if( result == -2 )
+		printf( "The directory does not exist on server\n" );
+}
+
+void send_instruction(int s, char* message) {
+	uint32_t len, sendlen;
 	int i;
 
-	char lenbuf[12];
-	sprintf( lenbuf, "%d", size );
+	len = strlen( message ) + 1;
+	len = htonl( len );
 
-	if( send( s, lenbuf, 12, 0 ) == -1 ){
-		fprintf( stderr, "myftp: send error\n" );
-		exit( 1 );
+	// send the length of the message
+	if( write( s, &len, sizeof(uint32_t) ) == -1 ){
+		fprintf( stderr, "myftp: error sending size\n" );
+		return;
 	}
 
-	for (i = 0; i < size; i += MAX_LINE) {
-		if( send( s, message + i, MAX_LINE, 0 ) == -1 ){
-			fprintf( stderr, "myftp: size receive error\n" );
+	len = ntohl( len );
+
+	printf( "length: %u\n", len );
+
+	// send the actual message
+	for (i = 0; i < len; i += MAX_LINE) {
+		sendlen = (len-i < MAX_LINE) ? len-i : MAX_LINE;
+		if( write( s, &message[i], sendlen ) == -1 ){
+			fprintf( stderr, "myftp: error sending message\n" );
 			exit( 1 );
 		}
 	}
-	
-	return size;	
 }
 
-int list_dir( int s ){
-	char buf[MAX_LINE+1];
-	uint32_t len;
-	int i;
+uint16_t receive_result(int s){
+	uint16_t result;
 
-	buf[MAX_LINE] = '\0';
-
-	if( (recv( s, buf, MAX_LINE, 0 ) ) == -1 ){
-		fprintf( stderr, "myftp: error receiving listing size\n" );
-		return -1;
+	if( read( s, &result, sizeof(uint16_t) ) == -1 ){
+		fprintf( stderr, "myftp: error receiving result\n" );
+		return 0;
 	}
-	len = strtoul( buf, 0, 10 );
 
-	for( i = 0; i < len; i += MAX_LINE ){
-		if( (recv( s, buf, MAX_LINE, 0 ) ) == -1 ){
-			fprintf( stderr, "myftp: error receiving listing\n" );
-			return -1;
-		}
-		printf( "%s", buf );
-	}
+	return ntohs( result );
 }

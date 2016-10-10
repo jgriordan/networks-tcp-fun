@@ -27,7 +27,7 @@ int delete_file(int s);
 int change_dir(int s);
 int check_dir(char *dir); // checks that the directory exists
 int check_file(char *file);
-int receive_instruction(int s, char* buf);
+int receive_instruction(int s, char** buf);
 
 int main( int argc, char* argv[] ){
 	struct sockaddr_in sin, client_addr;
@@ -87,6 +87,7 @@ int main( int argc, char* argv[] ){
 		}
 
 		while( 1 ){
+			printf( "Waiting to receive command\n" );
 			if( ( len = recv( new_s, buf, sizeof( buf ), 0 ) ) == -1 ){
 				// changed from 1 to -1
 				fprintf( stderr, "myftpd: receive error\n" );
@@ -141,10 +142,10 @@ int handle_input(char* msg, int s) {
 
 int delete_file(int s) {
 
-	char file[MAX_LINE]; 
+	char* file; 
 	char buf[MAX_LINE];
 
-	if (receive_instruction(s, file) <= 0) {
+	if (receive_instruction(s, &file) <= 0) {
 		return -3; // instruction error
 	}
 
@@ -178,7 +179,7 @@ int list_dir(int s) {
 	DIR *dp; // pointer to current directory
 	struct dirent *dep; // information about directory
 	char *buf;
-	int len; // length of message
+	uint16_t len, netlen; // length of message
 	int alcnt = 1; // increment size (count allocs)
 
 	// new method for continually allocating data
@@ -206,15 +207,11 @@ int list_dir(int s) {
 		fprintf( stderr, "myftpd: could not close directory\n" );
 	}
 
-	// send directory
-	
-	len = strlen(buf) + 1;
-
 	//send message length
-	char lenbuf[12];
-	sprintf( lenbuf, "%d", len );
-	if (send(s, lenbuf, strlen(lenbuf)+1, 0) == -1) {	
-		fprintf( stderr, "myftpd: error sending size\n");
+	len = strlen(buf) + 1;
+	netlen = htons( len );
+	if( write( s, &netlen, sizeof(uint16_t) ) == -1 ){
+		fprintf( stderr, "myftpd: error sending length\n" );
 		free( buf );
 		return -1;
 	}
@@ -236,10 +233,10 @@ int list_dir(int s) {
 
 int remove_dir(int s) {
 
-	char dir[MAX_LINE]; 
+	char* dir; 
 	char buf[MAX_LINE];
 
-	if (receive_instruction(s, dir) <= 0) {
+	if (receive_instruction(s, &dir) <= 0) {
 		return -3; // instruction error
 	}
 
@@ -287,10 +284,10 @@ int check_dir(char *dir) { // checks that the directory exists
 }
 
 int make_dir(int s) {
-	char dir[MAX_LINE]; 
+	char* dir; 
 	struct stat st = {0}; // holds directory status
 
-	if (receive_instruction(s, dir) <= 0) {
+	if (receive_instruction(s, &dir) <= 0) {
 		return -3; // instruction error
 	}
 
@@ -305,37 +302,60 @@ int make_dir(int s) {
 
 int change_dir(int s) {
 	char* dir;
-	if (receive_instruction(s, dir) <= 0) {
-		return -3;
+	
+	short result;
+	uint16_t netresult;
+	struct stat st; // holds directory status
+
+	if (receive_instruction(s, &dir) <= 0)
+		result = -1;
+	else if (stat(dir, &st) == -1) // directory not found
+		result = -2;
+	else if( chdir( dir ) == 0 ) // success
+		result = 1;
+	else
+		result = -1;
+
+	printf( "changed dir: %s, result: %d\n", dir, result );
+
+	netresult = htons( result );
+	if( write( s, &netresult, sizeof(uint16_t) ) == -1 ){
+		fprintf( stderr, "myftpd: error sending result to client" );
+		free( dir );
+		return -1;
 	}
-	chdir( dir );
+
+	printf( "????\n" );
 
 	free( dir );
-	return 0; // returns 0 on success, -1 error
+	return 0;
 }
 
-int receive_instruction(int s, char* buf) { // This should be okay as long as the length doesnt exceed max line, 
-//just return error for now but client will need to loop through and free when reading large files (like list_dir)
-//returns size sent and stores message in buf
-	int len, i;
-	char lenbuf[MAX_LINE];
-	buf = malloc(sizeof(char)*MAX_LINE);
-	buf[0] = '\0';
+int receive_instruction(int s, char** buf) {
+	int i;
+	uint32_t len, recvlen;
 
-	// todo: receive length first and loop, perhaps subtract len from expected total before loop?	
-	if( recv( s, lenbuf, MAX_LINE, 0 ) == -1 ){
+	printf( "Waiting to receive instruction.\n" );
+
+	if( read( s, &len, sizeof(uint32_t) ) == -1 ){
 		fprintf( stderr, "myftpd: size receive error\n" );
 		return -1;
 	}
-	len = strtoul( buf, 0, 10 );
+	len = ntohl( len );
 
-	for( i=0; i < len; i += MAX_LINE ){
-	if( ( len_m = recv( s, buf, sizeof(buf), 0 ) ) == -1 ){
-		fprintf( stderr, "myftpd: size receive error\n" );
-		exit( 1 );
+	printf( "length: %u\n", len );
+
+	*buf = malloc( len );
+
+	for( i = 0; i < len; i += MAX_LINE ){
+		recvlen = (len - i < MAX_LINE ) ? len-i : MAX_LINE;
+		if( read( s, (*buf)+i, recvlen ) == -1 ){
+			fprintf( stderr, "myftpd: error receiving instruction\n" );
+			return -1;
+		}
 	}
 
-	printf( "Received Instruction: %s", buf );			
-	
-	return size;	
+	printf( "Received Instruction: %s", *buf );
+
+	return len;	
 }
