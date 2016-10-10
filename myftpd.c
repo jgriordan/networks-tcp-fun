@@ -107,10 +107,11 @@ int main( int argc, char* argv[] ){
 			//	fprintf(stderr, "myftpd: failure to complete request\n");
 			//}
 			response = htons(response);
-			if ( send( new_s, &response, sizeof(response), 0) == -1) {
+/*			if ( send( new_s, &response, sizeof(response), 0) == -1) {
 				fprintf( stderr, "myftpd: response sending error\n"); 
 				exit( 1 );
 			}
+*/ // TODO: send and receive response
 		}
 
 		close( new_s );

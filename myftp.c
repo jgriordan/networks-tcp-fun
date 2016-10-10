@@ -112,7 +112,7 @@ void list_dir(int s){
 	int i;
 
 	buf[MAX_LINE] = '\0';
-	while (netlen == 0) {
+	while (netlen == 0) { // sends an empty message, so skip those cases
 	if( read( s, &netlen, sizeof(uint16_t) ) == -1 ){
 		fprintf( stderr, "myftp: error receiving listing size\n" );
 		return;
@@ -123,6 +123,7 @@ void list_dir(int s){
 	len = ntohs( netlen );
 	printf("len: %u\n", len);
 
+	
 	for( i = 0; i < len; i += MAX_LINE ){
 		if( (recv( s, buf, MAX_LINE, 0 ) ) == -1 ){
 			fprintf( stderr, "myftp: error receiving listing\n" );
@@ -131,6 +132,8 @@ void list_dir(int s){
 		printf( "%s", buf );
 		printf("received bytes: %i, expect: %i", i, len);
 	}
+
+	
 	// TODO: need to ensure there is nothing else coming again, the length
 	// sometimes receives the end of a message, not the actual length, and interprets it wrong.
 }
