@@ -88,7 +88,6 @@ int main( int argc, char* argv[] ){
 }
 
 void handle_action(char* msg, int s) {
-
 	// check for all special 3 char messages
 	if (!strncmp("DEL", msg, 3))
 		delete_file( s );
@@ -103,7 +102,46 @@ void handle_action(char* msg, int s) {
 }
 
 void delete_file(int s){
+	char* buf;
+	short result;
+	int alcnt = 1;
+	uint32_t len = 0;
+	char c;
 
+	buf = malloc( sizeof(char)*MAX_LINE );
+
+	printf( "Enter the file name to remove: " );
+	fflush( stdin );
+	while( (c = fgetc( stdin ) && c != '\n') != EOF ){
+		buf[len++] = c;
+		if( len == alcnt*MAX_LINE )
+			buf = realloc( buf, ++alcnt*sizeof(char)*MAX_LINE );
+	}
+	send_instruction( s, buf );
+
+	result = receive_result( s );
+	if( result == 1 ){
+		buf[0] = '\0';
+
+		while( strncmp( buf, "Yes", 3 ) && strncmp( buf, "No", 2 ) ){
+			printf( "Confirm you want to delete the file: \"Yes\" to delete, \"No\" to ignore: " );
+			fflush( stdin );
+			fgets( buf, MAX_LINE, stdin );
+		}
+
+		send_instruction( s, buf );
+		
+		if( !strncmp( buf, "No", 2 ) )
+			printf( "Delete abandoned by the user!\n" );
+		else{
+			result = receive_result( s );
+			if( result == 1 )
+				printf( "File deleted\n" );
+			else if( result == -1 )
+				printf( "Failed to delete file\n" );
+		}
+	} else if( result == -1 )
+		printf( "The file does not exist on the server\n" );
 }
 
 void list_dir(int s){
@@ -130,12 +168,7 @@ void list_dir(int s){
 			return;
 		}
 		printf( "%s", buf );
-		//printf("received bytes: %i, expect: %i", i, len);
 	}
-
-	
-	// TODO: need to ensure there is nothing else coming again, the length
-	// sometimes receives the end of a message, not the actual length, and interprets it wrong.
 }
 
 void make_dir(int s) {
