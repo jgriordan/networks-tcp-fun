@@ -111,7 +111,7 @@ void upload( int s ) {
 
 	// buf = malloc( sizeof(char)*MAX_LINE );
 
-	printf( "Enter the file name to remove: " );
+	printf( "Enter the file name to upload: " );
 	fflush( stdin );
 	fgets( buf, MAX_LINE, stdin );
 

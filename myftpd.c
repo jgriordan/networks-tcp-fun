@@ -31,6 +31,7 @@ int check_file(char *file);
 int receive_instruction(int s, char** buf);
 void send_result(int s, short result);
 void upload( int s );
+int receive_file(int s, FILE* fp); 
 
 int main( int argc, char* argv[] ){
 	struct sockaddr_in sin, client_addr;
@@ -150,18 +151,55 @@ void upload( int s ) {
 	
 	// open the file to write to
 	fp = fopen(buf, "wb");
+	printf("opened file: %x\n", fp);
+
 	if (fp == NULL) {
+		fprintf( stderr, "myftdp: could not create file\n");
 		result = -1; // not ready
-		send_result(result, s);
+		send_result(s, result);
 		return;
 	} else {
 		result =  1; // ready 
 		// tell client we are ready
-		send_result(result, s);
+		send_result(s, result);
 	}	
 	
-// TODO: load_file(fp);
-// calculate and compare hash	
+	if (receive_file(s, fp) <= 0) { // might return hash value instead of num bytes written
+		fprintf( stderr, "myftpd: error writing new file\n" );
+	}
+
+	fclose(fp);
+// TODO: calculate and compare hash	
+}
+
+int receive_file(int s, FILE* fp) { // MIGHT need pointer to pointer
+
+	int i;
+	uint32_t len, recvlen;
+	char *buf;
+
+	printf( "Loading file...\n" );
+
+	if( read( s, &len, sizeof(uint32_t) ) == -1 ){
+		fprintf( stderr, "myftpd: size receive error\n" );
+		return -1;
+	}
+	len = ntohl( len );
+	printf( "File length: %i\n", len);
+	buf = malloc( len );
+
+	for( i = 0; i < len; i += MAX_LINE ){
+		recvlen = (len - i < MAX_LINE ) ? len-i : MAX_LINE;
+		if( read( s, buf+i, recvlen ) == -1 ){
+			fprintf( stderr, "myftpd: error receiving instruction\n" );
+			return -1;
+		}
+	}
+
+
+	printf( "Writing to file at %x\n", fp);
+	return fwrite(buf, 1, len, fp); // should return the number of bytes written, or an error
+
 }
 
 void delete_file(int s) {
