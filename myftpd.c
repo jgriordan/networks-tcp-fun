@@ -219,6 +219,7 @@ void request( int s ){
 
 void upload( int s ) {
 	short result;
+	int rec_result;
 	char *buf;
 	FILE *fp = NULL; // file pointer to write to
 	int namelen; // file name length
@@ -244,8 +245,12 @@ void upload( int s ) {
 		send_result(s, result);
 	}	
 	
-	if (receive_file(s, fp) < 0) { // might return hash value instead of num bytes written
+	if ((rec_result = receive_file(s, fp)) == -2) { // might return hash value instead of num bytes written
+		// hashes do not match
+		remove(buf);
+	} else if (rec_result == -1) {
 		fprintf( stderr, "myftpd: error writing new file\n" );
+		
 	}
 
 	fclose(fp);
@@ -257,9 +262,12 @@ int receive_file(int s, FILE* fp) { // MIGHT need pointer to pointer
 	int i;
 	uint32_t len, recvlen;
 	char *buf;
+	char hash[16], hashCmp[16];
+	char c;
 	uint32_t thrput, netthrput;
 	long int upload_time;
 	struct timeval start, stop;
+	MHASH compute;
 
 	printf( "Loading file...\n" );
 
@@ -279,6 +287,7 @@ int receive_file(int s, FILE* fp) { // MIGHT need pointer to pointer
 		recvlen = (len - i < MAX_LINE ) ? len-i : MAX_LINE;
 		if( read( s, buf+i, recvlen ) == -1 ){
 			fprintf( stderr, "myftpd: error receiving instruction\n" );
+			free(buf);
 			return -1;
 		}
 	}
@@ -294,19 +303,49 @@ int receive_file(int s, FILE* fp) { // MIGHT need pointer to pointer
 	}
 	printf ("%u bits per second\n", thrput);
 
-	if (fwrite(buf, 1, len, fp) != len) {
+	/*if (fwrite(buf, 1, len, fp) != len) {
 		fprintf( stderr, "myftpd: error writing to designated file\n"); // should return the number of bytes written, or an error
+		return -1;
+	}*/ // combining this with hashing
+
+	// get hash from client
+	if( read( s, hash, 16 ) == -1 ){
+		fprintf( stderr, "myftp: error receiving md5 hash\n" );
+		free(buf);
+		return -1;
+	}
+	// initialize hash computation
+	compute = mhash_init( MHASH_MD5 );
+	if( compute == MHASH_FAILED ){
+		fprintf( stderr, "myftpd: hash failed\n" );
+		free( buf );
 		return -1;
 	}
 
-	//TODO: receive MD5 hash, compute and compare (can send
-	// send thrput
-	// set thrput to -1 if there is an error (maybe 0 works better
-	netthrput = htonl( thrput );
-	if( write( s, &netthrput, sizeof(uint32_t) ) == -1 )
-		fprintf( stderr, "myftpd: error sending result to client" );
+	for (i = 0; i < len; i++) {
+		c = buf[i]; // get every character
+		fputc( c, fp ); 
+		mhash( compute, &c, 1 );
+	}
+	
+	// get hash
+	mhash_deinit( compute, hashCmp );
+	if ( !strncmp( hash, hashCmp, 16 )) { // hash successful
+		// send thrput
+		// set thrput to -1 if there is an error (maybe 0 works better
+		netthrput = htonl( thrput );
+		if( write( s, &netthrput, sizeof(uint32_t) ) == -1 )
+			fprintf( stderr, "myftpd: error sending result to client" );
 
-
+	} else {
+		
+		send_result(s, -1);
+		free(buf);
+		return -2; // file should be removed
+		//TODO: this is ugly, would rather have the name here and delete it
+		
+	}
+	free(buf);
 	return 0;
 }
 

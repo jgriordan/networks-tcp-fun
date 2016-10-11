@@ -228,7 +228,10 @@ void send_file( int s, FILE* fp) {
 	
 	uint32_t size, net_size, sendlen;
 	char * buffer;
-	size_t b_read; // bytes read 
+	//size_t b_read; // bytes read 
+	MHASH compute;
+	char hash[16];
+	char c;
 
 	fseek(fp, 0L, SEEK_END);
 	size = ftell(fp); // how far is the byte offset to the end.
@@ -247,20 +250,42 @@ void send_file( int s, FILE* fp) {
 		fprintf( stderr, "myftp: memory error, file buffer\n" );
 		exit(1);
 	}
-
-	b_read = fread( buffer, 1, size, fp );
+/*
+	b_read = fread( buffer, 1, size, fp ); // reading by fgetc instead
 	if (b_read != size) {
 		fprintf( stderr, "myftp: error reading to buffer from file\n" );
 		exit(1);
 	}
-		
+*/
+	// initialize hash computation
+	compute = mhash_init( MHASH_MD5 );
+	if( compute == MHASH_FAILED ){
+		fprintf( stderr, "myftpd: hash failed\n" );
+		free( buffer );
+		return;
+	}
+
 	int i;
+	for ( i = 0; i < size; i++) {
+		c = fgetc( fp );
+		buffer[i] = c;
+		mhash( compute, &c, 1);
+	}	
+
 	for (i = 0; i < size; i += MAX_LINE) {
 		sendlen = (size-i < MAX_LINE) ? size-i : MAX_LINE;
 		if( write( s, &buffer[i], sendlen ) == -1 ){
 			fprintf( stderr, "myftp: error sending message\n" );
 			exit( 1 );
 		}
+	}
+
+	// end hash computation and send to server 
+	mhash_deinit( compute, hash );
+	if( write( s, hash, 16 ) == -1 ){
+		fprintf( stderr, "myftpd: error sending hash\n" );
+		free( buffer );
+		return;
 	}
 
 	// receive response
@@ -272,6 +297,8 @@ void send_file( int s, FILE* fp) {
 		thrput = ntohl( netthrput );
 		if (thrput != -1) {
 			printf("Uploaded file; Through put: %u bits per second\n", thrput);
+		} else {
+			printf("Hashes did not match: File transfer error\n");
 		}
 	}
 
