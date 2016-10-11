@@ -13,6 +13,7 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <time.h>
+//#include <sys/time.h>
 #include <unistd.h> // for the unix commands
 #include <dirent.h> // for directory information
 #include <sys/stat.h> // for directory status
@@ -164,7 +165,7 @@ void upload( int s ) {
 		send_result(s, result);
 	}	
 	
-	if (receive_file(s, fp) <= 0) { // might return hash value instead of num bytes written
+	if (receive_file(s, fp) < 0) { // might return hash value instead of num bytes written
 		fprintf( stderr, "myftpd: error writing new file\n" );
 	}
 
@@ -177,6 +178,9 @@ int receive_file(int s, FILE* fp) { // MIGHT need pointer to pointer
 	int i;
 	uint32_t len, recvlen;
 	char *buf;
+	uint32_t thrput;
+	long int upload_time;
+	struct timeval start, stop;
 
 	printf( "Loading file...\n" );
 
@@ -188,6 +192,10 @@ int receive_file(int s, FILE* fp) { // MIGHT need pointer to pointer
 	printf( "File length: %i\n", len);
 	buf = malloc( len );
 
+	//TODO: calculate throughput
+	
+	gettimeofday(&start, NULL);
+	
 	for( i = 0; i < len; i += MAX_LINE ){
 		recvlen = (len - i < MAX_LINE ) ? len-i : MAX_LINE;
 		if( read( s, buf+i, recvlen ) == -1 ){
@@ -195,11 +203,23 @@ int receive_file(int s, FILE* fp) { // MIGHT need pointer to pointer
 			return -1;
 		}
 	}
+	gettimeofday(&stop, NULL);
 
 
-	printf( "Writing to file at %x\n", fp);
-	return fwrite(buf, 1, len, fp); // should return the number of bytes written, or an error
+	upload_time = stop.tv_usec - start.tv_usec;
+	
+	printf ("%li microseconds, %u\n", upload_time);
+	thrput = ((8*len)*100000/upload_time);
+	printf ("%u bits per second\n", thrput);
 
+	if (fwrite(buf, 1, len, fp) != len) {
+		fprintf( stderr, "myftpd: error writing to designated file\n"); // should return the number of bytes written, or an error
+		return -1;
+	}
+
+	//TODO: receive MD5 hash, compute and compare (can send
+
+	return 0;
 }
 
 void delete_file(int s) {
