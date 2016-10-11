@@ -72,8 +72,7 @@ int main( int argc, char* argv[] ){
 			break;
 		}
 
-		len = strlen(buf) + 1;
-		if( send( s, buf, len, 0 ) == -1 ){
+		if( send( s, buf, 3, 0 ) == -1 ){
 			fprintf( stderr, "myftp: send error\n" );
 			exit( 1 );
 		} else {
@@ -101,6 +100,95 @@ void handle_action(char* msg, int s) {
 		change_dir( s );
 	else if (!strncmp("UPL", msg, 3))
 		upload( s );
+	else if (!strncmp("REQ", msg, 3))
+		request( s );
+}
+
+void request( int s ){
+	char c;
+	char fileName[MAX_LINE];
+	char hash[16], hashCmp[16];
+	long fileLen;
+	FILE* fp;
+	char* fileText;
+	uint32_t recvlen, i;
+	MHASH compute;
+
+	printf( "Enter the file name to request: " );
+	fflush( stdin );
+	fgets( fileName, MAX_LINE, stdin );
+
+	// trim the \n off the end
+	if( strlen(fileName) < MAX_LINE )
+		fileName[strlen(fileName)-1] = '\0';
+	else
+		fileName[MAX_LINE-1] = '\0';
+
+	// send the file name over
+	send_instruction( s, fileName );
+
+	printf( "name: %s\n", fileName );
+
+	// check if file existed on server
+	fileLen = receive_result32( s );
+	printf( "file len: %li\n", fileLen );
+
+	// both are -1
+	if( fileLen == -1 || fileLen == 4294967295 ){
+		printf( "File does not exist\n" );
+		return;
+	}
+
+	// empty file case
+	if( fileLen == 0 ){
+		fp = fopen( fileName, "w+" );
+		fclose( fp );
+		return;
+	}
+
+	// get hash from server
+	if( read( s, hash, 16 ) == -1 ){
+		fprintf( stderr, "myftp: error receiving md5 hash\n" );
+		return;
+	}
+
+	// get the file's text from the server
+	fileText = malloc( fileLen );
+	for( i = 0; i < fileLen; i += MAX_LINE ){
+		recvlen = (fileLen - i < MAX_LINE ) ? fileLen-i : MAX_LINE;
+		if( read( s, fileText+i, recvlen ) == -1 ){
+			fprintf( stderr, "myftp: error receiving file data\n" );
+			free( fileText );
+			return;
+		}
+	}
+	printf( "read %u bytes\n", i-MAX_LINE+recvlen );
+
+	// initialize hash computation
+	compute = mhash_init( MHASH_MD5 );
+	if( compute == MHASH_FAILED ){
+		fprintf( stderr, "myftpd: hash failed\n" );
+		free( fileText );
+		return;
+	}
+	
+	// create and write the file
+	fp = fopen( fileName, "w+" );
+	for( i = 0; i < fileLen; i++ ){
+		c = fileText[i];
+		fputc( c, fp );
+		mhash( compute, &c, 1 );
+	}
+	fclose( fp );
+	free( fileText );
+
+	printf( "wrote %u bytes\n", i );
+
+	mhash_deinit( compute, hashCmp );
+	if( !strncmp( hash, hashCmp, 16 ) ){
+		printf( "Transfer was successful\n" );
+	} else
+		printf( "Transfer was unsuccessful\n" );
 }
 
 void upload( int s ) {
@@ -201,7 +289,7 @@ void delete_file(int s){
 	fflush( stdin );
 	fgets( buf, MAX_LINE, stdin );
 
-	/* TODO: FIX SO WE CAN GET NAMES LARGER THAN MAX_LINE
+	/* OPRIONAL TODO: FIX SO WE CAN GET NAMES LARGER THAN MAX_LINE
 	while( c = fgetc( stdin ) && c != '\n' && c != EOF ){
 		buf[len++] = c;
 		if( len == alcnt*MAX_LINE )
@@ -368,4 +456,19 @@ uint16_t receive_result(int s){
 	}
 
 	return ntohs( result );
+}
+
+uint32_t receive_result32(int s){
+	uint32_t result;
+
+	printf( "reading\n" );
+
+	if( read( s, &result, sizeof(uint32_t) ) == -1 ){
+		fprintf( stderr, "myftp: error receiving result\n" );
+		return 0;
+	}
+
+	printf( "done reading\n" );
+
+	return ntohl( result );
 }

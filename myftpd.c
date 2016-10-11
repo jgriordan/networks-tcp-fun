@@ -17,11 +17,13 @@
 #include <unistd.h> // for the unix commands
 #include <dirent.h> // for directory information
 #include <sys/stat.h> // for directory status
+#include <mhash.h>
 
 #define MAX_PENDING 5
 #define MAX_LINE 256
 
 void handle_input(char* msg, int s);
+void request(int);
 int list_dir(int s);
 void remove_dir(int s);
 void make_dir(int s);
@@ -92,20 +94,9 @@ int main( int argc, char* argv[] ){
 		}
 
 		while( 1 ){
-			printf( "Waiting to receive command\n" );
-			if( ( len = recv( new_s, buf, sizeof( buf ), 0 ) ) == -1 ){
-				// changed from 1 to -1
+			printf( "Main loop\n" );
+			if( read( new_s, buf, 3 ) == -1 ){
 				fprintf( stderr, "myftpd: receive error\n" );
-				exit( 1 );
-			}
-
-			if( len == 0 ) break;
-
-			printf( "Received: %s", buf );			
-
-			// exit case.
-			if (!strncmp("XIT", buf, 3)) { // client sent exit request
-				break;
 			}
 
 			handle_input(buf, new_s);
@@ -135,7 +126,95 @@ void handle_input(char* msg, int s) {
 		change_dir(s);
 	} else if (!strncmp("UPL", msg, 3)) {
 		upload(s);
+	} else if (!strncmp("REQ", msg, 3))
+		request( s );
+}
+
+void request( int s ){
+	char c;
+	char* fileName;
+	char* fileText;
+	uint16_t result;
+	long fileLen;
+	uint32_t fileLenNet, sendlen, i;
+	struct stat fileStats;
+	MHASH compute;
+	char hash[16];
+	FILE* fp;
+
+	if (receive_instruction(s, &fileName) <= 0) {
+		fprintf( stderr, "myftpd: instruction receive error\n" );
+		free( fileName );
+		return;
 	}
+
+	result = check_file( fileName );
+
+	// file exists: get file length
+	if( result == 1 ){
+		stat( fileName, &fileStats );
+		fileLen = fileStats.st_size;
+
+	// file doesn't exist: return result
+	} else {
+		fileLen = -1;
+	}
+
+	printf( "file len: %li\n", fileLen );
+	// send the file size to the client
+	fileLenNet = htonl( fileLen );
+	if( write( s, &fileLenNet, sizeof(uint32_t) ) == -1 ){
+		fprintf( stderr, "myftpd: error sending file size\n" );
+		free( fileName );
+		return;
+	}
+
+	// we're done if the file didn't exist or is empty
+	if( result != 1 || fileLen == 0 ){
+		free( fileName );
+		return;
+	}
+
+	// initialize hash computation
+	compute = mhash_init( MHASH_MD5 );
+	if( compute == MHASH_FAILED ){
+		fprintf( stderr, "myftpd: hash failed\n" );
+		free( fileName );
+		return;
+	}
+
+	// get ready to read file
+	fileText = malloc( fileLen );
+	fp = fopen( fileName, "r" );
+	free( fileName );
+
+	// actually read the file
+	for( i = 0; i < fileLen; i++ ){
+		c = fgetc( fp );
+		fileText[i] = c;
+		mhash( compute, &c, 1 );
+	}
+	fclose( fp );
+
+	// end hash computation and send to client
+	mhash_deinit( compute, hash );
+	if( write( s, hash, 16 ) == -1 ){
+		fprintf( stderr, "myftpd: error sending hash\n" );
+		free( fileText );
+		return;
+	}
+
+	// send the file's data to the client
+	for( i=0; i<fileLen; i+= MAX_LINE ){
+		sendlen = (fileLen - i < MAX_LINE) ? fileLen-i : MAX_LINE;
+		if( write( s, fileText+i, sendlen ) == -1 ){
+			fprintf( stderr, "myftpd: error sending file data\n" );
+			free( fileText );
+			return;
+		}
+	}
+
+	free( fileText );
 }
 
 void upload( int s ) {
@@ -238,17 +317,17 @@ void delete_file(int s) {
 
 	if (receive_instruction(s, &file) <= 0) {
 		fprintf( stderr, "myftpd: instruction receive error\n" );
+		free( file );
 		return;
 	}
 
 	result = check_file( file );
 
-	printf( "file: %s, result: %d\n", file, result );
-
 	netresult = htons( result );
 	// send response regarding file existence
 	if (send(s, &netresult, sizeof(uint16_t), 0) == -1) {
 		fprintf( stderr, "myftpd: error sending file status\n");
+		free( file );
 		return;
 	}
 
@@ -257,6 +336,7 @@ void delete_file(int s) {
 		// get confirmation from client
 		if( receive_instruction( s, &confirm ) <= 0 ){
 			fprintf( stderr, "myftpd: error receiving client confirmation\n" );
+			free( file );
 			return;
 		}
 
@@ -271,6 +351,8 @@ void delete_file(int s) {
 		}
 	}
 	send_result(s, result);
+
+	free( file );
 }
 
 int list_dir(int s) {
@@ -338,6 +420,7 @@ void remove_dir(int s) {
 
 	if (receive_instruction(s, &dir) <= 0) {
 		fprintf( stderr, "myftpd: instruction receive error\n" );
+		free( dir );
 		return;
 	}
 
@@ -347,6 +430,7 @@ void remove_dir(int s) {
 	// send response regarding directory
 	if (send(s, &netresult, sizeof(uint16_t), 0) == -1) {
 		fprintf( stderr, "myftpd: error sending directory status\n");
+		free( dir );
 		return;
 	}
 
@@ -355,6 +439,7 @@ void remove_dir(int s) {
 		// get confirmation from client
 		if( receive_instruction( s, &confirm ) <= 0 ){
 			fprintf( stderr, "myftpd: error receiving client confirmation\n" );
+			free( dir );
 			return;
 		}
 
@@ -371,6 +456,7 @@ void remove_dir(int s) {
 				fprintf( stderr, "myftpd: error sending result to client" );
 		}
 	}
+	free( dir );
 }
 
 // checks that file exists
@@ -404,6 +490,7 @@ void make_dir(int s) {
 
 	if( receive_instruction( s, &dir ) <= 0 ){
 		fprintf( stderr, "myftpd: instruction receive error\n" );
+		free( dir );
 		return;
 	}
 
@@ -420,6 +507,8 @@ void make_dir(int s) {
 		result = -2;
 	
 	send_result(s, result);
+
+	free( dir );
 }
 
 void change_dir(int s) {
@@ -436,8 +525,6 @@ void change_dir(int s) {
 	else
 		result = -1;
 
-	printf( "changed dir: %s, result: %d\n", dir, result );
-
 	send_result(s, result);
 /*
 	netresult = htons( result );
@@ -452,14 +539,11 @@ void send_result(int s, short result) {
 	uint16_t netresult = htons( result );
 	if( write( s, &netresult, sizeof(uint16_t) ) == -1 )
 		fprintf( stderr, "myftpd: error sending result to client" );
-
 }
 
 int receive_instruction(int s, char** buf) {
 	int i;
 	uint32_t len, recvlen;
-
-	printf( "Waiting to receive instruction.\n" );
 
 	if( read( s, &len, sizeof(uint32_t) ) == -1 ){
 		fprintf( stderr, "myftpd: size receive error\n" );
@@ -476,8 +560,6 @@ int receive_instruction(int s, char** buf) {
 			return -1;
 		}
 	}
-
-	printf( "Received Instruction: %s", *buf );
 
 	return len;	
 }
