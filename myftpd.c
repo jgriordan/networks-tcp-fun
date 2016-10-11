@@ -30,6 +30,7 @@ int check_dir(char *dir); // checks that the directory exists
 int check_file(char *file);
 int receive_instruction(int s, char** buf);
 void send_result(int s, short result);
+void upload( int s );
 
 int main( int argc, char* argv[] ){
 	struct sockaddr_in sin, client_addr;
@@ -130,7 +131,37 @@ void handle_input(char* msg, int s) {
 	} else if (!strncmp("CHD", msg, 3)) {
 		// start change_directory process and return its response
 		change_dir(s);
+	} else if (!strncmp("UPL", msg, 3)) {
+		upload(s);
 	}
+}
+
+void upload( int s ) {
+	short result;
+	char *buf;
+	FILE *fp = NULL; // file pointer to write to
+	int namelen; // file name length
+
+	if ((namelen = receive_instruction(s, &buf)) <= 0) {
+		fprintf( stderr, "myftpd: error receiving file name\n" );
+		return;
+	}
+	// get file name
+	
+	// open the file to write to
+	fp = fopen(buf, "wb");
+	if (fp == NULL) {
+		result = -1; // not ready
+		send_result(result, s);
+		return;
+	} else {
+		result =  1; // ready 
+		// tell client we are ready
+		send_result(result, s);
+	}	
+	
+// TODO: load_file(fp);
+// calculate and compare hash	
 }
 
 void delete_file(int s) {

@@ -99,6 +99,83 @@ void handle_action(char* msg, int s) {
 		remove_dir( s );
 	else if (!strncmp("CHD", msg, 3))
 		change_dir( s );
+	else if (!strncmp("UPL", msg, 3))
+		upload( s );
+}
+
+void upload( int s ) {
+
+	char buf[MAX_LINE];
+	short result;
+	FILE* fp; // file pointer to read data
+
+	// buf = malloc( sizeof(char)*MAX_LINE );
+
+	printf( "Enter the file name to remove: " );
+	fflush( stdin );
+	fgets( buf, MAX_LINE, stdin );
+
+	// trim the \n off the end of buf
+	buf[strlen(buf)-1] = 0;
+
+	fp = fopen(buf, "rb");
+	if (fp) {
+		send_instruction( s, buf );
+	} else {
+		printf("The file does not exist.\n");
+		return;
+	}
+
+	result = receive_result( s );
+	if( result == 1 ){ // ready to receive
+		//buf[0] = '\0';
+		send_file(s, fp); // should be able to do all necessary operations here.
+	} else {
+		printf( "The server is not ready to receive that file.\n" );
+	}
+
+}
+
+void send_file( int s, FILE* fp) {
+	
+	uint32_t size, net_size, sendlen;
+	char * buffer;
+	size_t b_read; // bytes read 
+
+	fseek(fp, 0L, SEEK_END);
+	size = ftell(fp); // how far is the byte offset to the end.
+	rewind(fp);
+
+	// send the length of the message
+	net_size = htonl(size);
+
+	if( write( s, &net_size, sizeof(uint32_t) ) == -1 ){
+		fprintf( stderr, "myftp: error sending size\n" );
+		return;
+	}
+	
+	buffer = (char *) malloc( sizeof(char) * size );
+	if ( buffer == NULL ) {
+		fprintf( stderr, "myftp: memory error, file buffer\n" );
+		exit(1);
+	}
+
+	b_read = fread( buffer, 1, size, fp );
+	if (b_read != size) {
+		fprintf( stderr, "myftp: error reading to buffer from file\n" );
+		exit(1);
+	}
+		
+	int i;
+	for (i = 0; i < size; i += MAX_LINE) {
+		sendlen = (size-i < MAX_LINE) ? size-i : MAX_LINE;
+		if( write( s, &buffer[i], sendlen ) == -1 ){
+			fprintf( stderr, "myftp: error sending message\n" );
+			exit( 1 );
+		}
+	}
+	fclose(fp);
+	free(buffer);
 }
 
 void delete_file(int s){
