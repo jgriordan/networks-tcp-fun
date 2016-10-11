@@ -174,6 +174,19 @@ void send_file( int s, FILE* fp) {
 			exit( 1 );
 		}
 	}
+
+	// receive response
+	uint32_t netthrput, thrput;
+
+	if( read( s, &netthrput, sizeof(uint32_t) ) == -1 ){
+		fprintf( stderr, "myftp: error receiving through put\n" );
+	} else {
+		thrput = ntohl( netthrput );
+		if (thrput != -1) {
+			printf("Uploaded file; Through put: %u bits per second\n", thrput);
+		}
+	}
+
 	fclose(fp);
 	free(buffer);
 }

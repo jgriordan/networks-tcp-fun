@@ -178,7 +178,7 @@ int receive_file(int s, FILE* fp) { // MIGHT need pointer to pointer
 	int i;
 	uint32_t len, recvlen;
 	char *buf;
-	uint32_t thrput;
+	uint32_t thrput, netthrput;
 	long int upload_time;
 	struct timeval start, stop;
 
@@ -208,8 +208,11 @@ int receive_file(int s, FILE* fp) { // MIGHT need pointer to pointer
 
 	upload_time = stop.tv_usec - start.tv_usec;
 	
-	printf ("%li microseconds, %u\n", upload_time);
+	if (upload_time != 0) {
 	thrput = ((8*len)*100000/upload_time);
+	} else {
+		thrput = 0;
+	}
 	printf ("%u bits per second\n", thrput);
 
 	if (fwrite(buf, 1, len, fp) != len) {
@@ -218,6 +221,12 @@ int receive_file(int s, FILE* fp) { // MIGHT need pointer to pointer
 	}
 
 	//TODO: receive MD5 hash, compute and compare (can send
+	// send thrput
+	// set thrput to -1 if there is an error (maybe 0 works better
+	netthrput = htonl( thrput );
+	if( write( s, &netthrput, sizeof(uint32_t) ) == -1 )
+		fprintf( stderr, "myftpd: error sending result to client" );
+
 
 	return 0;
 }
@@ -259,9 +268,6 @@ void delete_file(int s) {
 			else
 				result = -1;
 
-			netresult = htons( result );
-			if( write( s, &netresult, sizeof(uint16_t) ) == -1 )
-				fprintf( stderr, "myftpd: error sending result to client" );
 		}
 	}
 	send_result(s, result);
