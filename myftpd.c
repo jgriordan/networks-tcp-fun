@@ -136,7 +136,7 @@ void request( int s ){
 	char* fileText;
 	uint16_t result;
 	long fileLen;
-	uint32_t fileLenNet, sendlen, i;
+	long fileLenNet, sendlen, i;
 	struct stat fileStats;
 	MHASH compute;
 	char hash[16];
@@ -163,7 +163,7 @@ void request( int s ){
 	printf( "file len: %li\n", fileLen );
 	// send the file size to the client
 	fileLenNet = htonl( fileLen );
-	if( write( s, &fileLenNet, sizeof(uint32_t) ) == -1 ){
+	if( write( s, &fileLenNet, sizeof(long) ) == -1 ){
 		fprintf( stderr, "myftpd: error sending file size\n" );
 		free( fileName );
 		return;
@@ -255,15 +255,15 @@ void upload( int s ) {
 int receive_file(int s, FILE* fp) { // MIGHT need pointer to pointer
 
 	int i;
-	uint32_t len, recvlen;
+	long len, recvlen;
 	char *buf;
-	uint32_t thrput, netthrput;
+	long thrput, netthrput;
 	long int upload_time;
 	struct timeval start, stop;
 
 	printf( "Loading file...\n" );
 
-	if( read( s, &len, sizeof(uint32_t) ) == -1 ){
+	if( read( s, &len, sizeof(long) ) == -1 ){
 		fprintf( stderr, "myftpd: size receive error\n" );
 		return -1;
 	}
@@ -303,7 +303,7 @@ int receive_file(int s, FILE* fp) { // MIGHT need pointer to pointer
 	// send thrput
 	// set thrput to -1 if there is an error (maybe 0 works better
 	netthrput = htonl( thrput );
-	if( write( s, &netthrput, sizeof(uint32_t) ) == -1 )
+	if( write( s, &netthrput, sizeof(long) ) == -1 )
 		fprintf( stderr, "myftpd: error sending result to client" );
 
 
@@ -361,7 +361,7 @@ int list_dir(int s) {
 	char *buf;
 	uint16_t len, netlen; // length of message
 	int alcnt = 1; // increment size (count allocs)
-	uint32_t sendlen;
+	long sendlen;
 
 	// new method for continually allocating data
 	
@@ -543,9 +543,9 @@ void send_result(int s, short result) {
 
 int receive_instruction(int s, char** buf) {
 	int i;
-	uint32_t len, recvlen;
+	long len, recvlen;
 
-	if( read( s, &len, sizeof(uint32_t) ) == -1 ){
+	if( read( s, &len, sizeof(long) ) == -1 ){
 		fprintf( stderr, "myftpd: size receive error\n" );
 		return -1;
 	}

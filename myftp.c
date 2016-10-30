@@ -111,7 +111,7 @@ void request( int s ){
 	long fileLen;
 	FILE* fp;
 	char* fileText;
-	uint32_t recvlen, i;
+	long recvlen, i;
 	MHASH compute;
 
 	printf( "Enter the file name to request: " );
@@ -226,7 +226,7 @@ void upload( int s ) {
 
 void send_file( int s, FILE* fp) {
 	
-	uint32_t size, net_size, sendlen;
+	long size, net_size, sendlen;
 	char * buffer;
 	size_t b_read; // bytes read 
 
@@ -237,7 +237,7 @@ void send_file( int s, FILE* fp) {
 	// send the length of the message
 	net_size = htonl(size);
 
-	if( write( s, &net_size, sizeof(uint32_t) ) == -1 ){
+	if( write( s, &net_size, sizeof(long) ) == -1 ){
 		fprintf( stderr, "myftp: error sending size\n" );
 		return;
 	}
@@ -264,9 +264,9 @@ void send_file( int s, FILE* fp) {
 	}
 
 	// receive response
-	uint32_t netthrput, thrput;
+	long netthrput, thrput;
 
-	if( read( s, &netthrput, sizeof(uint32_t) ) == -1 ){
+	if( read( s, &netthrput, sizeof(long) ) == -1 ){
 		fprintf( stderr, "myftp: error receiving through put\n" );
 	} else {
 		thrput = ntohl( netthrput );
@@ -423,14 +423,14 @@ void change_dir(int s) {
 }
 
 void send_instruction(int s, char* message) {
-	uint32_t len, sendlen;
+	long len, sendlen;
 	int i;
 
 	len = strlen( message ) + 1;
 	len = htonl( len );
 
 	// send the length of the message
-	if( write( s, &len, sizeof(uint32_t) ) == -1 ){
+	if( write( s, &len, sizeof(long) ) == -1 ){
 		fprintf( stderr, "myftp: error sending size\n" );
 		return;
 	}
@@ -458,12 +458,12 @@ uint16_t receive_result(int s){
 	return ntohs( result );
 }
 
-uint32_t receive_result32(int s){
-	uint32_t result;
+long receive_result32(int s){
+	long result;
 
 	printf( "reading\n" );
 
-	if( read( s, &result, sizeof(uint32_t) ) == -1 ){
+	if( read( s, &result, sizeof(long) ) == -1 ){
 		fprintf( stderr, "myftp: error receiving result\n" );
 		return 0;
 	}
