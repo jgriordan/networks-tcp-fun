@@ -2,6 +2,7 @@
 // John Riordan
 // And Nolan
 // jriorda2
+// jnolan5
 
 // usage: myftp server_name port
 
@@ -287,7 +288,7 @@ void upload( int s ) {
 			return;
 		}
 		// some timing issue resolved by waiting a little
-		usleep( 4000 );
+		usleep( 7000 );
 	}
 	free( fileText );
 

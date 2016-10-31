@@ -1,6 +1,8 @@
 // myftpd.c
 // John Nolan
 // And Riordan
+// jnolan5
+// jriorda2
 
 // usage: myftpd port
 
