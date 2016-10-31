@@ -1,0 +1,19 @@
+John Nolan
+John Riordan
+project3 README
+
+Files before "make":
+client/Makefile
+client/myftp.c
+server/Makefile
+server/myftpd.c
+
+Files compiled by "make":
+client/myftp
+server/myftpd
+
+Example command to run in server (first) on student00:
+./myftpd 41044
+
+Example ommand to run in client (second) on student01:
+./myftp student00.cse.nd.edu 41044
