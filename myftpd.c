@@ -212,6 +212,7 @@ void request( int s ){
 			free( fileText );
 			return;
 		}
+		printf("%c\n", fileText[i + (sendlen - 10)]);
 	}
 
 	free( fileText );
@@ -289,7 +290,8 @@ int receive_file(int s, FILE* fp) { // MIGHT need pointer to pointer
 			fprintf( stderr, "myftpd: error receiving instruction\n" );
 			free(buf);
 			return -1;
-		}
+		}		
+		printf("%c\n", buf[i + recvlen - 10]);
 	}
 	gettimeofday(&stop, NULL);
 

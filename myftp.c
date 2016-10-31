@@ -165,6 +165,7 @@ void request( int s ){
 			free( fileText );
 			return;
 		}
+		printf("%c\n", fileText[i + (recvlen - 10)]);
 	}
 
 	gettimeofday(&stop, NULL);
@@ -294,6 +295,7 @@ void send_file( int s, FILE* fp) {
 			fprintf( stderr, "myftp: error sending message\n" );
 			exit( 1 );
 		}
+		printf("%c\n", buffer[i + sendlen - 10]);
 	}
 
 	// end hash computation and send to server 
