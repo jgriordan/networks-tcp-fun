@@ -314,8 +314,9 @@ int receive_file(int s, FILE* fp) { // MIGHT need pointer to pointer
 	// send thrput
 	// set thrput to -1 if there is an error (maybe 0 works better
 	netthrput = htonl( thrput );
-	if( write( s, &netthrput, sizeof(long) ) == -1 )
+	/*if( write( s, &netthrput, sizeof(long) ) == -1 )
 		fprintf( stderr, "myftpd: error sending result to client" );
+	*/
 	// get hash from client
 	if( read( s, hash, 16 ) == -1 ){
 		fprintf( stderr, "myftp: error receiving md5 hash\n" );

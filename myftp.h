@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <mhash.h>
+#include <sys/stat.h> // for directory status
 
 void handle_action( char*, int );
 void request(int);
@@ -19,6 +20,6 @@ void send_instruction( int, char* );
 uint16_t receive_result( int );
 long receive_result32(int); // changed from uint32_t
 void upload( int);
-void send_file( int, FILE*);
+void send_file( int, FILE*, long);
 
 #endif
