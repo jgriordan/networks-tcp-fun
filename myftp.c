@@ -109,12 +109,11 @@ void request( int s ){
 	char c;
 	char fileName[MAX_LINE];
 	char hash[16], hashCmp[16];
-	long thrput, netthrput;
+	double thrput, upload_time;
 	long fileLen;
 	FILE* fp;
 	char* fileText;
 	long recvlen, i;
-	long int upload_time;
 	struct timeval start, stop;
 	MHASH compute;
 
@@ -131,11 +130,8 @@ void request( int s ){
 	// send the file name over
 	send_instruction( s, fileName );
 
-	printf( "name: %s\n", fileName );
-
 	// check if file existed on server
 	fileLen = receive_result32( s );
-	printf( "file len: %li\n", fileLen );
 
 	// both are -1
 	if( fileLen == -1 || fileLen == 4294967295 ){
@@ -166,18 +162,14 @@ void request( int s ){
 			free( fileText );
 			return;
 		}
-		//printf("%s\n", fileText + i + (recvlen - 10));
-		//usleep( 100000 );
 	}
 
 	gettimeofday(&stop, NULL);
 
-	upload_time = stop.tv_usec - start.tv_usec;
-
-	printf( "read %u bytes\n", i-MAX_LINE+recvlen );
+	upload_time = stop.tv_sec - start.tv_sec + ((double)stop.tv_usec)/1000000 - ((double)start.tv_usec)/1000000;
 
 	if (upload_time != 0) {
-		thrput = ((fileLen*1000000)/upload_time); // bytes per microsecond to second
+		thrput = ((double)fileLen)/upload_time;
 	} else {
 		thrput = 0;
 	}
@@ -199,14 +191,17 @@ void request( int s ){
 	fclose( fp );
 	free( fileText );
 
-	printf( "wrote %u bytes\n", i );
-
 	mhash_deinit( compute, hashCmp );
 	if( !strncmp( hash, hashCmp, 16 ) ){
 		printf( "Transfer was successful\n" );
-		printf("%lu bytes transferred in %0.6f seconds: %0.4f Megabytes per second\n", fileLen, ((float)fileLen)/((float)thrput),(float)thrput/1000000.0);
-		printf("File MD5sum: %x\n", hash);
-} else
+		printf("%ld bytes transferred in %.2f seconds: %.3f Megabytes per second\n", fileLen, ((float)fileLen)/((float)thrput),(float)thrput/1000000.0);
+		printf( "File MD5sum: " );
+		for (i = 0; i < 16; i++) {
+			printf("%0x", hash[i]);
+		}
+		printf( "\n" );
+		int j;
+	} else
 		printf( "Transfer was unsuccessful\n" );
 }
 
@@ -510,14 +505,10 @@ uint16_t receive_result(int s){
 long receive_result32(int s){
 	long result;
 
-	printf( "reading\n" );
-
 	if( read( s, &result, sizeof(long) ) == -1 ){
 		fprintf( stderr, "myftp: error receiving result\n" );
 		return 0;
 	}
-
-	printf( "done reading\n" );
 
 	return ntohl( result );
 }
