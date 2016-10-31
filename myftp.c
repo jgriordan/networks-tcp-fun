@@ -227,30 +227,29 @@ void upload( int s ) {
 		printf("The file does not exist.\n");
 		return;
 	}
-
+	
+	struct stat fileStats;
+	long size;
+	stat(buf, &fileStats);
+	size = fileStats.st_size;
 	result = receive_result( s );
 	if( result == 1 ){ // ready to receive
 		//buf[0] = '\0';
-		usleep(50); // i think this might help to wait before it gets the size. 
-		send_file(s, fp); // should be able to do all necessary operations here.
+		send_file(s, fp, size); // should be able to do all necessary operations here.
 	} else {
 		printf( "The server is not ready to receive that file.\n" );
 	}
 
 }
 
-void send_file( int s, FILE* fp) {
+void send_file( int s, FILE* fp, long size) {
 	
-	long size, net_size, sendlen;
+	long net_size, sendlen;
 	char * buffer;
 	//size_t b_read; // bytes read 
 	MHASH compute;
 	char hash[16];
 	char c;
-
-	fseek(fp, 0L, SEEK_END);
-	size = ftell(fp); // how far is the byte offset to the end.
-	rewind(fp);
 
 	// send the length of the message
 	net_size = htonl(size);
