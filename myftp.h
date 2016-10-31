@@ -3,6 +3,7 @@
 #ifndef MYFTP_H
 #define MYFTP_H
 
+#include <unistd.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <mhash.h>

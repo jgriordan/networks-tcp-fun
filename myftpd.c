@@ -214,7 +214,8 @@ void request( int s ){
 			free( fileText );
 			return;
 		}
-		printf("%s\n", fileText + i + (sendlen - 10) );
+		usleep( 10000 );
+		//printf("%s\n", fileText + i + (sendlen - 10) );
 	}
 
 	free( fileText );

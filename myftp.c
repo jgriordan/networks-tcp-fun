@@ -166,7 +166,8 @@ void request( int s ){
 			free( fileText );
 			return;
 		}
-		printf("%s\n", fileText + i + (recvlen - 10));
+		//printf("%s\n", fileText + i + (recvlen - 10));
+		//usleep( 100000 );
 	}
 
 	gettimeofday(&stop, NULL);
