@@ -94,7 +94,6 @@ int main( int argc, char* argv[] ){
 		}
 
 		while( 1 ){
-			printf( "Main loop\n" );
 			if( read( new_s, buf, 3 ) == -1 ){
 				fprintf( stderr, "myftpd: receive error\n" );
 			}
@@ -162,7 +161,6 @@ void request( int s ){
 		fileLen = -1;
 	}
 
-	printf( "file len: %li\n", fileLen );
 	// send the file size to the client
 	fileLenNet = htonl( fileLen );
 	if( write( s, &fileLenNet, sizeof(long) ) == -1 ){
@@ -214,8 +212,8 @@ void request( int s ){
 			free( fileText );
 			return;
 		}
-		usleep( 10000 );
-		//printf("%s\n", fileText + i + (sendlen - 10) );
+		// some timing issue resolved by waiting a little
+		usleep( 200 );
 	}
 
 	free( fileText );
