@@ -1,6 +1,6 @@
 // myftpd.c
-// John Riordan
-// jriorda2
+// John Nolan
+// And Riordan
 
 // usage: myftpd port
 
@@ -13,7 +13,6 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <time.h>
-//#include <sys/time.h>
 #include <unistd.h> // for the unix commands
 #include <dirent.h> // for directory information
 #include <sys/stat.h> // for directory status
@@ -223,16 +222,25 @@ void upload( int s ) {
 	short result;
 	int rec_result;
 	char *buf;
+	char *fileText;
 	FILE *fp = NULL; // file pointer to write to
 	int namelen; // file name length
 	int i;
 	long len, recvlen;
-	double thrput, netthrput;
 	char hash[16], hashCmp[16];
 	char c;
-	double upload_time;
+	long upload_time, netuplt;
 	struct timeval start, stop;
 	MHASH compute;
+
+	if( read( s, &result, sizeof(short) ) == -1 ){
+		fprintf( stderr, "myftpd: error receiving confirmation file exists\n" );
+		return;
+	}
+	result = ntohs( result );
+
+	if( !result )
+		return;
 
 	// get file name
 	if ( receive_instruction(s, &buf) <= 0 ) {
@@ -259,33 +267,24 @@ void upload( int s ) {
 	}
 	len = ntohl( len );
 
-	buf = malloc( len );
-	
+	fileText = malloc( len );
 	gettimeofday(&start, NULL);
-	
 	for( i = 0; i < len; i += MAX_LINE ){
 		recvlen = (len - i < MAX_LINE ) ? len-i : MAX_LINE;
-		if( read( s, buf+i, recvlen ) == -1 ){
+		if( read( s, fileText+i, recvlen ) == -1 ){
 			fprintf( stderr, "myftpd: error receiving instruction\n" );
-			free(buf);
+			free( fileText );
 			return;
-		}		
+		}
 	}
 	gettimeofday(&stop, NULL);
 
-	upload_time = stop.tv_sec + 1000000*stop.tv_usec - start.tv_sec - 1000000*start.tv_usec;
+	upload_time = 1000000*stop.tv_sec + stop.tv_usec - 1000000*start.tv_sec - start.tv_usec;
 	
-	if (upload_time != 0) {
-		thrput = ((double)len)/upload_time;
-	} else {
-		thrput = 0;
-	}
-	netthrput = htonl( thrput );
-
 	// get hash from client
 	if( read( s, hash, 16 ) == -1 ){
 		fprintf( stderr, "myftp: error receiving md5 hash\n" );
-		free(buf);
+		free( fileText );
 		return;
 	}
 
@@ -299,24 +298,31 @@ void upload( int s ) {
 
 	// write the file
 	for (i = 0; i < len; i++) {
-		c = buf[i]; // get every character
+		c = fileText[i]; // get every character
 		fputc( c, fp ); 
 		mhash( compute, &c, 1 );
 	}
 	fclose( fp );
+
+	printf( "upload time: %ld\n", upload_time );
 	
 	// get hash
 	mhash_deinit( compute, hashCmp );
-	if ( !strncmp( hash, hashCmp, 16 )) { // hash successful
-		// send thrput
-		// set thrput to -1 if there is an error (maybe 0 works better
-		netthrput = htonl( thrput );
-		if( write( s, &netthrput, sizeof(uint32_t) ) == -1 )
-			fprintf( stderr, "myftpd: error sending result to client" );
-	} else
-		send_result(s, -1);
+	if ( strncmp( hash, hashCmp, 16 )) { // hash unsuccessful
+		// set to -1 if there is an error
+		upload_time = -1;
+	}
+	netuplt = htonl( upload_time );
 
-	free(buf);
+	printf( "hash: " );
+	for( i=0; i<16; i++ )
+		printf( "%.2x", hashCmp[i] );
+	printf( "\n" );
+
+	if( write( s, &netuplt, sizeof(long) ) == -1 )
+		fprintf( stderr, "myftpd: error sending result to client" );
+
+	free( fileText );
 }
 
 void delete_file(int s) {

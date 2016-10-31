@@ -206,120 +206,117 @@ void request( int s ){
 }
 
 void upload( int s ) {
-
-	char buf[MAX_LINE];
-	short result;
+	char fileName[MAX_LINE];
+	short result, net_result;
 	FILE* fp; // file pointer to read data
-
-	// buf = malloc( sizeof(char)*MAX_LINE );
-
-	printf( "Enter the file name to upload: " );
-	fflush( stdin );
-	fgets( buf, MAX_LINE, stdin );
-
-	// trim the \n off the end of buf
-	buf[strlen(buf)-1] = 0;
-
-	fp = fopen(buf, "rb");
-	if (fp) {
-		send_instruction( s, buf );
-	} else {
-		printf("The file does not exist.\n");
-		return;
-	}
-	
 	struct stat fileStats;
-	long size;
-	stat(buf, &fileStats);
-	size = fileStats.st_size;
-	result = receive_result( s );
-	if( result == 1 ){ // ready to receive
-		//buf[0] = '\0';
-		send_file(s, fp, size); // should be able to do all necessary operations here.
-	} else {
-		printf( "The server is not ready to receive that file.\n" );
-	}
-
-}
-
-void send_file( int s, FILE* fp, long size) {
-	
-	long net_size, sendlen;
-	char * buffer;
-	//size_t b_read; // bytes read 
+	long fileLen, net_size, sendlen;
+	char* fileText;
 	MHASH compute;
 	char hash[16];
 	char c;
+	double thrput;
+	long i;
+
+	printf( "Enter the file name to upload: " );
+	fflush( stdin );
+	fgets( fileName, MAX_LINE, stdin );
+
+	// trim the \n off the end
+	if( strlen(fileName) < MAX_LINE )
+		fileName[strlen(fileName)-1] = '\0';
+	else
+		fileName[MAX_LINE-1] = '\0';
+
+	// confirm file exists
+	if( access( fileName, F_OK ) != -1 )
+		result = 1;
+	else{
+		printf( "The file does not exist\n" );
+		result = 0;
+	}
+	net_result = htons( result );
+
+	if( write( s, &net_result, sizeof(short) ) == -1 ){
+		fprintf( stderr, "myftp: error sending confirmation file exists\n" );
+		return;
+	}
+
+	if( !result )
+		return;
+
+	send_instruction( s, fileName );
+	
+	stat(fileName, &fileStats);
+	fileLen = fileStats.st_size;
+	result = receive_result( s );
+	if( result != 1 ){ // not ready to receive for some reason
+		printf( "The server is not ready to receive that file.\n" );
+		return;
+	}
 
 	// send the length of the message
-	net_size = htonl(size);
+	net_size = htonl( fileLen );
 
 	if( write( s, &net_size, sizeof(long) ) == -1 ){
 		fprintf( stderr, "myftp: error sending size\n" );
 		return;
 	}
-	
-	buffer = (char *) malloc( sizeof(char) * size );
-	if ( buffer == NULL ) {
-		fprintf( stderr, "myftp: memory error, file buffer\n" );
-		exit(1);
-	}
-/*
-	b_read = fread( buffer, 1, size, fp ); // reading by fgetc instead
-	if (b_read != size) {
-		fprintf( stderr, "myftp: error reading to buffer from file\n" );
-		exit(1);
-	}
-*/
+
 	// initialize hash computation
 	compute = mhash_init( MHASH_MD5 );
 	if( compute == MHASH_FAILED ){
 		fprintf( stderr, "myftpd: hash failed\n" );
-		free( buffer );
 		return;
 	}
 
-	int i;
-	for ( i = 0; i < size; i++) {
+	fileText = malloc( fileLen );
+	fp = fopen(fileName, "r");
+	for ( i = 0; i < fileLen; i++) {
 		c = fgetc( fp );
-		buffer[i] = c;
+		fileText[i] = c;
 		mhash( compute, &c, 1);
-	}	
-
-	for (i = 0; i < size; i += MAX_LINE) {
-		sendlen = (size-i < MAX_LINE) ? size-i : MAX_LINE;
-		if( write( s, &buffer[i], sendlen ) == -1 ){
-			fprintf( stderr, "myftp: error sending message\n" );
-			exit( 1 );
-		}
 	}
+	fclose( fp );
+
+	for (i = 0; i < fileLen; i += MAX_LINE) {
+		sendlen = (fileLen-i < MAX_LINE) ? fileLen-i : MAX_LINE;
+		if( write( s, fileText+i, sendlen ) == -1 ){
+			fprintf( stderr, "myftp: error sending file data\n" );
+			free( fileText );
+			return;
+		}
+		// some timing issue resolved by waiting a little
+		usleep( 4000 );
+	}
+	free( fileText );
 
 	// end hash computation and send to server 
 	mhash_deinit( compute, hash );
 	if( write( s, hash, 16 ) == -1 ){
 		fprintf( stderr, "myftpd: error sending hash\n" );
-		free( buffer );
 		return;
 	}
 
-	// receive response
-	long netthrput, thrput;
+	printf( "hash: " );
+	for( i=0; i<16; i++ )
+		printf( "%.2x", hash[i] );
+	printf( "\n" );
 
-	if( read( s, &netthrput, sizeof(long) ) == -1 ){
-		fprintf( stderr, "myftp: error receiving through put\n" );
+	// receive response
+	long upload_time;
+
+	upload_time = receive_result32( s );
+	// signed and unsigned -1
+	if( upload_time == -1 || upload_time == 4294967295 ){
+		printf( "myftp: Transfer was unsuccessful\n" );
 	} else {
-		thrput = ntohl( netthrput );
-		if (thrput != -1) {
-		printf("%lu bytes transferred in %0.6f seconds: %0.4f Megabytes per second\n", size, ((float)size)/((float)thrput), (float)thrput/1000000.0);
-		//	printf("Uploaded file. \n %0.2f bytes transferred in %0.2f seconds: %0.3f bytes per second\n", (float)size/8, ((float)size)/((float)thrput), (float)thrput/8);
-			printf("File MD5sum: %x\n", hash);
-		} else {
-			printf("Hashes did not match: File transfer error\n");
-		}
+		printf( "Transfer was successful\n" );
+		thrput = ((double)fileLen)/upload_time;
+		printf("%ld bytes transferred in %.2f seconds: %.3f Megabytes per second\n", fileLen, ((double)upload_time)/1000000, thrput);
+		printf("File MD5sum: %x\n", hash);
 	}
 
-	fclose(fp);
-	free(buffer);
 }
 
 void delete_file(int s){
@@ -331,13 +328,6 @@ void delete_file(int s){
 	printf( "Enter the file name to remove: " );
 	fflush( stdin );
 	fgets( buf, MAX_LINE, stdin );
-
-	/* OPRIONAL TODO: FIX SO WE CAN GET NAMES LARGER THAN MAX_LINE
-	while( c = fgetc( stdin ) && c != '\n' && c != EOF ){
-		buf[len++] = c;
-		if( len == alcnt*MAX_LINE )
-			buf = realloc( buf, ++alcnt*sizeof(char)*MAX_LINE );
-	} */
 
 	// trim the \n off the end of buf
 	buf[strlen(buf)-1] = 0;
