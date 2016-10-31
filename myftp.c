@@ -172,7 +172,7 @@ void request( int s ){
 
 	gettimeofday(&stop, NULL);
 
-	upload_time = stop.tv_usec - start.tv_usec;
+	upload_time = (1000000*stop.tv_sec + stop.tv_usec) - (1000000*start.tv_sec + start.tv_usec);
 
 	printf( "read %u bytes\n", i-MAX_LINE+recvlen );
 
@@ -236,6 +236,7 @@ void upload( int s ) {
 	result = receive_result( s );
 	if( result == 1 ){ // ready to receive
 		//buf[0] = '\0';
+		usleep(50); // i think this might help to wait before it gets the size. 
 		send_file(s, fp); // should be able to do all necessary operations here.
 	} else {
 		printf( "The server is not ready to receive that file.\n" );
@@ -297,7 +298,8 @@ void send_file( int s, FILE* fp) {
 			fprintf( stderr, "myftp: error sending message\n" );
 			exit( 1 );
 		}
-		printf("%s\n", buffer + i + sendlen - 10);
+	//	printf("%s\n", buffer + i + sendlen - 10);
+		usleep(100); //TODO temp
 	}
 
 	// end hash computation and send to server 

@@ -282,8 +282,7 @@ int receive_file(int s, FILE* fp) { // MIGHT need pointer to pointer
 	len = ntohl( len );
 	printf( "File length: %i\n", len);
 	buf = malloc( len );
-
-	//TODO: calculate throughput
+	//ERROR CHECK is on the client side but not here
 	
 	gettimeofday(&start, NULL);
 	
@@ -294,12 +293,12 @@ int receive_file(int s, FILE* fp) { // MIGHT need pointer to pointer
 			free(buf);
 			return -1;
 		}		
-		printf("%c\n", buf[i + recvlen - 10]);
+//		printf("%c\n", buf[i + recvlen - 10]);
 	}
 	gettimeofday(&stop, NULL);
 
 
-	upload_time = stop.tv_usec - start.tv_usec;
+	upload_time = (1000000*stop.tv_sec + stop.tv_usec) - (1000000*start.tv_sec + start.tv_usec);
 	
 	if (upload_time != 0) {
 		thrput = ((len*1000000)/upload_time); // bytes per microsecond to second
