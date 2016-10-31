@@ -16,7 +16,7 @@ void remove_dir( int );
 void change_dir( int );
 void send_instruction( int, char* );
 uint16_t receive_result( int );
-uint32_t receive_result32(int);
+long receive_result32(int); // changed from uint32_t
 void upload( int);
 void send_file( int, FILE*);
 

@@ -297,11 +297,11 @@ int receive_file(int s, FILE* fp) { // MIGHT need pointer to pointer
 	upload_time = stop.tv_usec - start.tv_usec;
 	
 	if (upload_time != 0) {
-	thrput = ((8*len)*100000/upload_time);
+		thrput = ((len*1000000)/upload_time); // bytes per microsecond to second
 	} else {
 		thrput = 0;
 	}
-	printf ("%u bits per second\n", thrput);
+	printf ("%u bytes per second\n", thrput);
 
 	/*if (fwrite(buf, 1, len, fp) != len) {
 		fprintf( stderr, "myftpd: error writing to designated file\n"); // should return the number of bytes written, or an error

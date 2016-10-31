@@ -108,10 +108,13 @@ void request( int s ){
 	char c;
 	char fileName[MAX_LINE];
 	char hash[16], hashCmp[16];
+	long thrput, netthrput;
 	long fileLen;
 	FILE* fp;
 	char* fileText;
 	long recvlen, i;
+	long int upload_time;
+	struct timeval start, stop;
 	MHASH compute;
 
 	printf( "Enter the file name to request: " );
@@ -154,6 +157,7 @@ void request( int s ){
 
 	// get the file's text from the server
 	fileText = malloc( fileLen );
+	gettimeofday(&start, NULL);
 	for( i = 0; i < fileLen; i += MAX_LINE ){
 		recvlen = (fileLen - i < MAX_LINE ) ? fileLen-i : MAX_LINE;
 		if( read( s, fileText+i, recvlen ) == -1 ){
@@ -162,8 +166,18 @@ void request( int s ){
 			return;
 		}
 	}
+
+	gettimeofday(&stop, NULL);
+
+	upload_time = stop.tv_usec - start.tv_usec;
+
 	printf( "read %u bytes\n", i-MAX_LINE+recvlen );
 
+	if (upload_time != 0) {
+		thrput = ((fileLen*1000000)/upload_time); // bytes per microsecond to second
+	} else {
+		thrput = 0;
+	}
 	// initialize hash computation
 	compute = mhash_init( MHASH_MD5 );
 	if( compute == MHASH_FAILED ){
@@ -187,7 +201,9 @@ void request( int s ){
 	mhash_deinit( compute, hashCmp );
 	if( !strncmp( hash, hashCmp, 16 ) ){
 		printf( "Transfer was successful\n" );
-	} else
+		printf("%lu bytes transferred in %0.6f seconds: %0.4f Megabytes per second\n", fileLen, ((float)fileLen)/((float)thrput),(float)thrput/1000000.0);
+		printf("File MD5sum: %x\n", hash);
+} else
 		printf( "Transfer was unsuccessful\n" );
 }
 
@@ -296,7 +312,9 @@ void send_file( int s, FILE* fp) {
 	} else {
 		thrput = ntohl( netthrput );
 		if (thrput != -1) {
-			printf("Uploaded file; Through put: %u bits per second\n", thrput);
+		printf("%lu bytes transferred in %0.6f seconds: %0.4f Megabytes per second\n", size, ((float)size)/((float)thrput), (float)thrput/1000000.0);
+		//	printf("Uploaded file. \n %0.2f bytes transferred in %0.2f seconds: %0.3f bytes per second\n", (float)size/8, ((float)size)/((float)thrput), (float)thrput/8);
+			printf("File MD5sum: %x\n", hash);
 		} else {
 			printf("Hashes did not match: File transfer error\n");
 		}
