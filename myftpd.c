@@ -98,7 +98,9 @@ int main( int argc, char* argv[] ){
 			if( read( new_s, buf, 3 ) == -1 ){
 				fprintf( stderr, "myftpd: receive error\n" );
 			}
-
+			if( !strncmp( buf, "XIT", 3)) {
+				break;
+			}
 			handle_input(buf, new_s);
 		}
 
@@ -212,7 +214,7 @@ void request( int s ){
 			free( fileText );
 			return;
 		}
-		printf("%c\n", fileText[i + (sendlen - 10)]);
+		printf("%s\n", fileText + i + (sendlen - 10) );
 	}
 
 	free( fileText );

@@ -67,16 +67,17 @@ int main( int argc, char* argv[] ){
 	while( fgets( buf, MAX_LINE, stdin ) ){
 
 		buf[MAX_LINE] = '\0';
-		if( !strncmp( buf, "XIT", 3 ) ){
-			printf( "Bye bye\n" );
-			break;
-		}
+		
 
 		if( send( s, buf, 3, 0 ) == -1 ){
 			fprintf( stderr, "myftp: send error\n" );
 			exit( 1 );
 		} else {
-			handle_action(buf, s);
+		if( !strncmp( buf, "XIT", 3 ) ){
+			printf( "Bye bye\n" );
+			break;
+		}
+		handle_action(buf, s);
 		}
 		printf( "Enter your operation (XIT to quit): " );
 	}
@@ -165,7 +166,7 @@ void request( int s ){
 			free( fileText );
 			return;
 		}
-		printf("%c\n", fileText[i + (recvlen - 10)]);
+		printf("%s\n", fileText + i + (recvlen - 10));
 	}
 
 	gettimeofday(&stop, NULL);
@@ -295,7 +296,7 @@ void send_file( int s, FILE* fp) {
 			fprintf( stderr, "myftp: error sending message\n" );
 			exit( 1 );
 		}
-		printf("%c\n", buffer[i + sendlen - 10]);
+		printf("%s\n", buffer + i + sendlen - 10);
 	}
 
 	// end hash computation and send to server 
